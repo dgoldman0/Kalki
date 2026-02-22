@@ -377,52 +377,53 @@ VARIABLE _ER-CURLINE  VARIABLE _ER-CURCOL
     CLR-TEXT-DIM GFX-TYPE ;
 
 \ _ED-RENDER-LINE ( screen-line line# -- )
-\   Render one line of text at y = screen-line * FONT-H + client-y.
+\   Render one line of text at y = screen-line * FONT-H + editor-abs-y.
 \   line# is 0-based absolute line number.
-VARIABLE _ERL-X  VARIABLE _ERL-Y  VARIABLE _ERL-LN
+VARIABLE _ERL-X  VARIABLE _ERL-Y  VARIABLE _ERL-LN  VARIABLE _ERL-POS
 : _ED-RENDER-LINE  ( screen-line line# -- )
-    DUP _ERL-LN !
-    \ Compute Y pixel position
-    SWAP FONT-H *
-    _ER-AY @ WIN-CLIENT-Y + +
+    _ERL-LN !                    ( screen-line )
+    FONT-H * _ER-AY @ +         ( y-pixel )
     _ERL-Y !
-    \ Compute X pixel position (after gutter)
-    _ER-AX @ WIN-CLIENT-X + _ERL-X !
+    _ER-AX @ _ERL-X !           ( -- )
     \ Draw line number (right-justified in gutter)
     _ERL-X @ GFX-CX !
     _ERL-Y @ GFX-CY !
     _ERL-LN @ 1+ _ED-RENDER-LINENUM
-    \ Padding
+    \ Set text cursor after gutter
     _ERL-X @ GUTTER-PX + GFX-CX !
     \ Render text content
-    _ERL-LN @ _ER-GB @ _GB-LINE-START     ( start-pos )
+    _ERL-LN @ _ER-GB @ _GB-LINE-START _ERL-POS !
     _ER-ED @ ED.VCOLS @ 0 DO
-        DUP _ER-GB @ GAP-LENGTH >= IF DROP LEAVE THEN
-        DUP _ER-GB @ GAP-CHAR@            ( pos char )
-        DUP 10 = IF 2DROP LEAVE THEN
-        \ Render single character via GFX-TYPE
-        _RCHAR C!                          ( pos )
-        _RCHAR 1 CLR-EDIT-FG GFX-TYPE     \ auto-advances GFX-CX
-        1+                                 ( pos+1 )
+        _ERL-POS @ _ER-GB @ GAP-LENGTH >= IF LEAVE THEN
+        _ERL-POS @ _ER-GB @ GAP-CHAR@     ( char )
+        DUP 10 = IF DROP LEAVE THEN
+        _RCHAR C!
+        _RCHAR 1 CLR-EDIT-FG GFX-TYPE
+        _ERL-POS @ 1+ _ERL-POS !
     LOOP ;
 
 : EDITOR-RENDER  ( widget -- )
     _ED-SETUP
-    \ Client area background (entire widget below title bar)
+    \ Editor widget area is already at absolute coords (ax, ay, w, h).
+    \ No WIN-CLIENT offsets needed — they are baked into WG-ABS-X/Y.
+    \ Layout: text area = (ax, ay, w, h - statusH)  statusH = FONT-H+2
+    \         gutter in left GUTTER-PX of text area
+    \         status bar at (ax, ay+h-statusH, w, statusH)
+    \ Text area background (white)
     CLR-EDIT-BG
-    _ER-AX @ WIN-CLIENT-X +
-    _ER-AY @ WIN-CLIENT-Y +
-    _ER-W @ WIN-CLIENT-X 2* -
-    _ER-H @ WIN-CLIENT-Y - WIN-BORDER -
+    _ER-AX @
+    _ER-AY @
+    _ER-W @
+    _ER-H @ FONT-H 2 + -
     FAST-RECT
-    \ Line number gutter background
+    \ Line number gutter background (overwrites left strip)
     CLR-WIN-BG
-    _ER-AX @ WIN-CLIENT-X +
-    _ER-AY @ WIN-CLIENT-Y +
+    _ER-AX @
+    _ER-AY @
     GUTTER-PX
-    _ER-H @ WIN-CLIENT-Y - WIN-BORDER -
+    _ER-H @ FONT-H 2 + -
     FAST-RECT
-    \ Compute cursor line/col for highlight
+    \ Compute cursor line/col
     _ER-GB @ GAP-CURSOR _ER-GB @ _GB-POS-TO-LINE
     _ER-CURCOL !  _ER-CURLINE !
     \ Ensure cursor is visible (auto-scroll)
@@ -435,30 +436,30 @@ VARIABLE _ERL-X  VARIABLE _ERL-Y  VARIABLE _ERL-LN
     THEN
     \ Render visible lines
     _ER-ED @ ED.VLINES @ 0 DO
-        I _ER-ED @ ED.SCROLL @ +          ( screen-line abs-line )
+        I _ER-ED @ ED.SCROLL @ +
         DUP _ER-GB @ _GB-COUNT-LINES >= IF DROP LEAVE THEN
         I SWAP _ED-RENDER-LINE
     LOOP
-    \ Draw cursor (solid block or line)
+    \ Draw cursor (thin 2px bar)
     _ER-CURLINE @ _ER-ED @ ED.SCROLL @ - DUP 0 >= IF
         DUP _ER-ED @ ED.VLINES @ < IF
-            FONT-H * _ER-AY @ WIN-CLIENT-Y + +   ( cursor-y )
+            FONT-H * _ER-AY @ +                     ( cursor-y )
             _ER-CURCOL @ FONT-W *
-            _ER-AX @ WIN-CLIENT-X + GUTTER-PX + +  ( cursor-y cursor-x )
-            SWAP                                     ( cursor-x cursor-y )
+            _ER-AX @ GUTTER-PX + +                   ( cursor-y cursor-x )
+            SWAP                                      ( cx cy )
             CLR-CURSOR SWAP ROT 2 FONT-H FAST-RECT
         ELSE DROP THEN
     ELSE DROP THEN
-    \ Status bar at bottom
+    \ Status bar at bottom of widget
     CLR-BTN-FACE
-    _ER-AX @ WIN-BORDER +
-    _ER-AY @ _ER-H @ + WIN-BORDER - FONT-H 2 + -
-    _ER-W @ WIN-BORDER 2* -
+    _ER-AX @
+    _ER-AY @ _ER-H @ + FONT-H 2 + -
+    _ER-W @
     FONT-H 2 +
     FAST-RECT
-    \ Status text: filename, line/col, dirty indicator
-    _ER-AX @ WIN-BORDER + 4 + GFX-CX !
-    _ER-AY @ _ER-H @ + WIN-BORDER - FONT-H - GFX-CY !
+    \ Status text: filename  L#:C#  [modified]
+    _ER-AX @ 4 + GFX-CX !
+    _ER-AY @ _ER-H @ + FONT-H - 1 - GFX-CY !
     _ER-ED @ ED.FNAME @ _ER-ED @ ED.FNLEN @
     CLR-TEXT GFX-TYPE
     S"  L" CLR-TEXT GFX-TYPE
@@ -687,9 +688,8 @@ VARIABLE _EDIT-FNLEN
     DUP C@ SWAP 1+              ( len addr )
     SWAP                         ( addr len )
     \ Copy filename to local buffer (BL WORD result is transient)
-    DUP 23 MIN DUP _EDIT-FNLEN !
-    >R _EDIT-FNAME R@ CMOVE R>
-    DROP                         ( -- )
+    23 MIN DUP _EDIT-FNLEN !     ( addr clen )
+    _EDIT-FNAME SWAP CMOVE       ( -- )
     \ Init graphics
     0 WIN-COUNT !  -1 WIN-ACTIVE !
     0 FOCUS-WIDGET !
