@@ -1,56 +1,60 @@
 \ =====================================================================
 \  kalki-color.f -- Kalki GUI Framework: Phase 1 Color System
 \ =====================================================================
-\  GUI palette constants and theme support for 8bpp indexed color.
+\  GUI color system for RGB565 direct color mode.
 \
 \  Provides:
-\    CLR-BLACK through CLR-WARN  (25 color constants, indices 0-24)
-\    KALKI-PAL-INIT              (program palette registers)
-\    THEME-CLASSIC, THEME-DARK, THEME-OCEAN  (theme tables)
-\    THEME-LOAD                  (apply a theme)
+\    CLR-BLACK through CLR-WARN  (25 color VARIABLEs, RGB565 values)
+\    KALKI-PAL-INIT              (load default theme into CLR-* vars)
+\    THEME-CLASSIC, THEME-DARK, THEME-OCEAN  (theme tables, 24-bit RGB)
+\    THEME-LOAD                  (convert 24-bit theme → RGB565 CLR-*)
 \
-\  Palette layout:
-\    0-24   GUI system colors (set by KALKI-PAL-INIT)
-\    25-31  Reserved for future system use
-\    32-255 Application-defined (sprites, gradients, etc.)
+\  Color representation:
+\    All CLR-* words return RGB565 values (16-bit direct color).
+\    Theme tables store 24-bit 0x00RRGGBB; THEME-LOAD converts them
+\    to RGB565 via RGB24>565 (defined in kalki-gfx.f).
 \
-\  Depends on: kalki-gfx.f (and transitively graphics.f)
+\  Depends on: kalki-gfx.f (RGB24>565, drawing primitives, graphics.f)
 \ =====================================================================
 
 PROVIDED kalki-color.f
 REQUIRE kalki-gfx.f
 
 \ =====================================================================
-\  Section 1: Color Constants
+\  Section 1: Color Variables
 \ =====================================================================
-\  These are palette indices (0-24).  The actual RGB values are
-\  programmed by KALKI-PAL-INIT or THEME-LOAD.
+\  Each CLR-* is a VARIABLE holding an RGB565 value.
+\  THEME-LOAD fills them from a 24-bit theme table.
 
- 0 CONSTANT CLR-BLACK
- 1 CONSTANT CLR-DESKTOP         \ steel blue background
- 2 CONSTANT CLR-WIN-BG          \ warm gray window fill
- 3 CONSTANT CLR-WIN-BORDER      \ window border
- 4 CONSTANT CLR-TITLE-BG        \ active title bar background
- 5 CONSTANT CLR-TITLE-FG        \ active title bar text
- 6 CONSTANT CLR-TITLE-INACTIVE  \ inactive title bar
- 7 CONSTANT CLR-TEXT            \ primary text color
- 8 CONSTANT CLR-TEXT-DIM        \ secondary / disabled text
- 9 CONSTANT CLR-HIGHLIGHT       \ selection highlight background
-10 CONSTANT CLR-HILITE-FG       \ selection highlight text
-11 CONSTANT CLR-BTN-FACE        \ button face / control surface
-12 CONSTANT CLR-BTN-LIGHT       \ 3D highlight (top-left bevel)
-13 CONSTANT CLR-BTN-SHADOW      \ 3D shadow (bottom-right bevel)
-14 CONSTANT CLR-BTN-DARK        \ outer dark shadow
-15 CONSTANT CLR-MENU-BG         \ menu / popup background
-16 CONSTANT CLR-MENU-SEL        \ menu selection bar
-17 CONSTANT CLR-SCROLL-BG       \ scrollbar track
-18 CONSTANT CLR-SCROLL-FG       \ scrollbar thumb
-19 CONSTANT CLR-EDIT-BG         \ text input background
-20 CONSTANT CLR-EDIT-FG         \ text input foreground
-21 CONSTANT CLR-CURSOR          \ text cursor / caret
-22 CONSTANT CLR-ERROR           \ red — error / destructive
-23 CONSTANT CLR-SUCCESS         \ green — success / confirm
-24 CONSTANT CLR-WARN            \ orange — warning / caution
+\ Color variable array — 25 cells, accessed as CLR-TABLE + index*CELL
+CREATE CLR-TABLE  25 CELLS ALLOT
+
+\ Convenience accessors: each returns the RGB565 value (not the address)
+: CLR-BLACK          CLR-TABLE  0 CELLS + @ ;
+: CLR-DESKTOP        CLR-TABLE  1 CELLS + @ ;
+: CLR-WIN-BG         CLR-TABLE  2 CELLS + @ ;
+: CLR-WIN-BORDER     CLR-TABLE  3 CELLS + @ ;
+: CLR-TITLE-BG       CLR-TABLE  4 CELLS + @ ;
+: CLR-TITLE-FG       CLR-TABLE  5 CELLS + @ ;
+: CLR-TITLE-INACTIVE CLR-TABLE  6 CELLS + @ ;
+: CLR-TEXT           CLR-TABLE  7 CELLS + @ ;
+: CLR-TEXT-DIM       CLR-TABLE  8 CELLS + @ ;
+: CLR-HIGHLIGHT      CLR-TABLE  9 CELLS + @ ;
+: CLR-HILITE-FG      CLR-TABLE 10 CELLS + @ ;
+: CLR-BTN-FACE       CLR-TABLE 11 CELLS + @ ;
+: CLR-BTN-LIGHT      CLR-TABLE 12 CELLS + @ ;
+: CLR-BTN-SHADOW     CLR-TABLE 13 CELLS + @ ;
+: CLR-BTN-DARK       CLR-TABLE 14 CELLS + @ ;
+: CLR-MENU-BG        CLR-TABLE 15 CELLS + @ ;
+: CLR-MENU-SEL       CLR-TABLE 16 CELLS + @ ;
+: CLR-SCROLL-BG      CLR-TABLE 17 CELLS + @ ;
+: CLR-SCROLL-FG      CLR-TABLE 18 CELLS + @ ;
+: CLR-EDIT-BG        CLR-TABLE 19 CELLS + @ ;
+: CLR-EDIT-FG        CLR-TABLE 20 CELLS + @ ;
+: CLR-CURSOR         CLR-TABLE 21 CELLS + @ ;
+: CLR-ERROR          CLR-TABLE 22 CELLS + @ ;
+: CLR-SUCCESS        CLR-TABLE 23 CELLS + @ ;
+: CLR-WARN           CLR-TABLE 24 CELLS + @ ;
 
 \ =====================================================================
 \  Section 2: Theme Tables
@@ -149,17 +153,18 @@ CREATE THEME-OCEAN
 \ =====================================================================
 
 \ THEME-LOAD ( theme-addr -- )
-\   Program palette entries 0-24 from a theme table.
-\   Each table entry is one cell (64-bit) holding a 24-bit RGB value.
+\   Populate CLR-TABLE with RGB565 values converted from a 24-bit
+\   theme table.  Each table entry is one cell holding 0x00RRGGBB.
 : THEME-LOAD
     #GUI-COLORS 0 DO
-        DUP I CELLS + @                ( theme rgb )
-        I FB-PAL!                       ( theme )
+        DUP I CELLS + @                ( theme rgb24 )
+        RGB24>565                       ( theme rgb565 )
+        CLR-TABLE I CELLS + !           ( theme )
     LOOP
     DROP ;
 
 \ KALKI-PAL-INIT ( -- )
-\   Program the default (Classic) GUI palette.
+\   Load the default (Classic) GUI palette into CLR-TABLE.
 : KALKI-PAL-INIT
     THEME-CLASSIC THEME-LOAD ;
 
@@ -173,39 +178,34 @@ CREATE THEME-OCEAN
 : THEME-APPLY
     THEME-LOAD ;
 
-\ CLR>RGB ( idx -- rgb )
-\   Read back the RGB value currently programmed for a palette index.
-\   NOTE: Requires FB-PAL@ (not available in current BIOS).
-\   Future: add FB-PAL@ to BIOS or implement palette shadow table.
-\ : CLR>RGB  FB-PAL@ ;
-
 \ =====================================================================
 \  Section 5: Color Demo
 \ =====================================================================
 
 : KALKI-COLOR-TEST  ( -- )
-    640 480 KALKI-GFX-INIT
+    800 600 KALKI-GFX-INIT
     KALKI-PAL-INIT
     \ Fill desktop
-    CLR-DESKTOP GFX-CLEAR
-    \ Draw palette swatches (5 rows × 5 columns, 60×30 each)
+    CLR-DESKTOP 0 0 800 600 FAST-RECT
+    \ Draw palette swatches (5 rows × 5 columns, 80×36 each)
     #GUI-COLORS 0 DO
-        I                               ( color )
-        I 5 MOD 64 * 20 +              ( color x )
-        I 5 / 36 * 20 +                ( color x y )
-        60 30                           ( color x y w h )
+        CLR-TABLE I CELLS + @          ( color565 )
+        I 5 MOD 84 * 20 +             ( color x )
+        I 5 / 46 * 20 +               ( color x y )
+        80 36                          ( color x y w h )
         FAST-RECT
     LOOP
     \ Labels
-    0 GFX-CX !  210 GFX-CY !
+    20 GFX-CX !  260 GFX-CY !
     S" Kalki Color System - Classic" CLR-TITLE-FG GFX-TYPE
     \ Dark theme preview
     THEME-DARK THEME-LOAD
     #GUI-COLORS 0 DO
-        I  I 5 MOD 64 * 20 +  I 5 / 36 * 240 +  60 30 FAST-RECT
+        CLR-TABLE I CELLS + @
+        I 5 MOD 84 * 20 +  I 5 / 46 * 310 +  80 36 FAST-RECT
     LOOP
-    0 GFX-CX !  430 GFX-CY !
-    S" Dark Theme" 5 GFX-TYPE
+    20 GFX-CX !  550 GFX-CY !
+    S" Dark Theme" CLR-TITLE-FG GFX-TYPE
     \ Restore classic
     KALKI-PAL-INIT
     FB-SWAP

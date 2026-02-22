@@ -1,7 +1,7 @@
 \ =====================================================================
 \  kalki-gfx.f -- Kalki GUI Framework: Phase 0 Graphics Primitives
 \ =====================================================================
-\  Fixed and fast framebuffer drawing for 8bpp indexed-color mode.
+\  Fast framebuffer drawing for RGB565 (mode 1, 16bpp) direct color.
 \
 \  Provides:
 \    FAST-HLINE, FAST-VLINE, FAST-RECT, FAST-BOX
@@ -9,32 +9,54 @@
 \    CL-HLINE, CL-VLINE, CL-RECT, CL-BOX
 \    GFX-BLIT2, GFX-SCROLL-UP2
 \    FB-INIT-DOUBLE, FB-SWAP
+\    RGB24>565, WFILL
 \
-\  Depends on: graphics.f (GFX-*, font data, palette helpers)
+\  Depends on: graphics.f (GFX-*, font data)
 \
-\  IMPORTANT: All FAST-* and CL-* words assume 8bpp mode (mode 0).
-\  This is the optimal mode for GUI work: 1 byte/pixel, FILL-friendly,
-\  64 pixels per tile for SIMD acceleration.
+\  Default mode: 800x600 RGB565 (mode 1) — 65536 colors, 2 bytes/pixel.
+\  Uses dedicated VRAM (4 MiB) for double buffering.
+\  Frame budget: 800*600*2*2 = 1.83 MiB — easily fits.
 \ =====================================================================
 
 PROVIDED kalki-gfx.f
 REQUIRE graphics.f
 
 \ =====================================================================
+\  Section 0: Color Conversion Helpers
+\ =====================================================================
+
+\ RGB24>565 ( rgb24 -- rgb565 )
+\   Convert 0x00RRGGBB to 16-bit RGB565 (RRRRRGGGGGGBBBBB).
+: RGB24>565  ( rgb24 -- rgb565 )
+    DUP 16 RSHIFT 0x1F AND 11 LSHIFT  ( rgb24 r5<<11 )
+    SWAP DUP 8 RSHIFT 0x3F AND 5 LSHIFT  ( r5<<11 rgb24 g6<<5 )
+    ROT OR SWAP  ( rg rgb24 )
+    0x1F AND OR ;  ( rgb565 )
+
+\ WFILL ( addr count color16 -- )
+\   Fill 'count' 16-bit words with color16.  Like FILL but for W!.
+: WFILL  ( addr count color16 -- )
+    ROT ROT                     ( color16 addr count )
+    0 DO                        ( color16 addr )
+        2DUP W!                 \ store 16-bit pixel
+        2 +                     \ next pixel
+    LOOP
+    2DROP ;
+
+\ =====================================================================
 \  Section 1: Fast Drawing Primitives
 \ =====================================================================
-\  These replace the slow pixel-by-pixel routines in graphics.f with
-\  FILL-based operations.  For 8bpp, each pixel = 1 byte, so FILL
-\  writes a horizontal span in one call (~64x faster than GFX-HLINE).
+\  RGB565 (16bpp) versions.  Each pixel = 2 bytes.  Uses W! for stores
+\  and WFILL for horizontal spans.
 
 \ FAST-HLINE ( color x y len -- )
-\   Draw a horizontal line using FILL.  8bpp only.
+\   Draw a horizontal line.  RGB565: W! in a loop.
 : FAST-HLINE
     >R                          ( color x y  R: len )
     GFX-ADDR                    ( color addr  R: len )
     R>                          ( color addr len )
     ROT                         ( addr len color )
-    FILL ;
+    WFILL ;
 
 \ FAST-VLINE ( color x y len -- )
 \   Draw a vertical line.  Computes address once, steps by stride.
@@ -43,7 +65,7 @@ REQUIRE graphics.f
     GFX-ADDR                    ( color addr  R: len )
     R>                          ( color addr len )
     0 DO                        ( color addr )
-        2DUP C!                 \ store pixel
+        2DUP W!                 \ store 16-bit pixel
         GFX-STR @ +             \ advance to next row
     LOOP
     2DROP ;
@@ -227,11 +249,11 @@ VARIABLE SCROLL-N              \ scroll distance in bytes
     GFX-FB @                            ( src dst )
     GFX-STR @ GFX-H @ * SCROLL-N @ -   ( src dst count )
     CMOVE
-    \ Clear bottom rows
+    \ Clear bottom rows (fill with black = 0x0000)
     GFX-FB @ GFX-STR @ GFX-H @ * +     ( fb_end )
     SCROLL-N @ -                        ( clear_start )
-    SCROLL-N @                          ( clear_start count )
-    0 FILL ;
+    SCROLL-N @ 2 /                      ( clear_start wpixels )
+    0 WFILL ;
 
 \ =====================================================================
 \  Section 5: Double Buffering
@@ -244,15 +266,15 @@ VARIABLE FB-FRONT              \ address displayed by hardware
 VARIABLE FB-BACK               \ address we draw to (= GFX-FB)
 
 \ FB-INIT-DOUBLE ( -- )
-\   Set up double buffering.  Call after GFX-INIT or GFX-INIT-HBW.
+\   Set up double buffering.  Call after GFX-INIT.
 \   Front buffer = current GFX-FB.  Back buffer = immediately after.
 : FB-INIT-DOUBLE
     GFX-FB @ FB-FRONT !
     GFX-FB @ GFX-STR @ GFX-H @ * + FB-BACK !
     \ Start drawing to back buffer
     FB-BACK @ GFX-FB !
-    \ Clear back buffer
-    FB-BACK @ GFX-STR @ GFX-H @ * 0 FILL ;
+    \ Clear back buffer (16-bit zero fill)
+    FB-BACK @ GFX-STR @ GFX-H @ * 2 / 0 WFILL ;
 
 \ FB-SWAP ( -- )
 \   Swap front and back buffers on vsync.  After this call:
@@ -273,10 +295,11 @@ VARIABLE FB-BACK               \ address we draw to (= GFX-FB)
 \ =====================================================================
 
 \ KALKI-GFX-INIT ( w h -- )
-\   Initialize for Kalki: 8bpp mode, dedicated VRAM (falls back to
-\   ext-mem or HBW automatically), double buffered, clip to full screen.
+\   Initialize for Kalki: RGB565 mode (mode 1), dedicated VRAM,
+\   double buffered, clip to full screen.
+\   Default: 800x600 — 1.83 MiB double-buffered in 4 MiB VRAM.
 : KALKI-GFX-INIT
-    0 GFX-INIT
+    1 GFX-INIT
     FB-INIT-DOUBLE
     CLIP-RESET ;
 
@@ -284,29 +307,36 @@ VARIABLE FB-BACK               \ address we draw to (= GFX-FB)
 \  Section 7: Smoke Test
 \ =====================================================================
 
+\ RGB565 color literals for smoke test
+0xF800 CONSTANT _T-RED
+0x07E0 CONSTANT _T-GREEN
+0x001F CONSTANT _T-BLUE
+0xFFFF CONSTANT _T-WHITE
+0xFFE0 CONSTANT _T-YELLOW
+0x07FF CONSTANT _T-CYAN
+
 : KALKI-GFX-TEST  ( -- )
-    640 480 KALKI-GFX-INIT
-    GFX-PAL-DEFAULT
-    \ Fast filled rects
-    1  10  10  200 100 FAST-RECT
-    4  50  50  200 100 FAST-RECT
-    2  90  90  200 100 FAST-RECT
+    800 600 KALKI-GFX-INIT
+    \ Fast filled rects (direct RGB565 colors)
+    _T-RED    10  10  200 100 FAST-RECT
+    _T-GREEN  50  50  200 100 FAST-RECT
+    _T-BLUE   90  90  200 100 FAST-RECT
     \ Fast outlined boxes
-    15 10  10  200 100 FAST-BOX
-    15 50  50  200 100 FAST-BOX
-    15 90  90  200 100 FAST-BOX
+    _T-WHITE  10  10  200 100 FAST-BOX
+    _T-WHITE  50  50  200 100 FAST-BOX
+    _T-WHITE  90  90  200 100 FAST-BOX
     \ Clipped drawing (clip to center region)
-    100 80 540 400 CLIP-SET
-    14  80  60  200  80 CL-RECT   \ partially clipped
-    3   500 350 200 200 CL-RECT   \ partially clipped
-    11  80  60  200  80 CL-BOX    \ partially clipped
+    100 80 700 520 CLIP-SET
+    _T-YELLOW 80  60  200  80 CL-RECT   \ partially clipped
+    _T-CYAN   600 450 200 200 CL-RECT   \ partially clipped
+    _T-WHITE  80  60  200  80 CL-BOX    \ partially clipped
     CLIP-RESET
-    \ Text
-    0 GFX-CX !  220 GFX-CY !
-    S" Kalki GFX Phase 0 -- OK" 15 GFX-TYPE
-    \ Blit test: copy a 32x16 strip from (10,10) to (300,250)
+    \ Text (GFX-TYPE uses GFX-PIXEL! which is BPP-aware)
+    0 GFX-CX !  320 GFX-CY !
+    S" Kalki GFX -- 800x600 RGB565" _T-WHITE GFX-TYPE
+    \ Blit test: copy a 32x16 strip from (10,10) to (400,350)
     10 10 GFX-ADDR              ( src )
-    300 250 32 16 GFX-BLIT2
+    400 350 32 16 GFX-BLIT2
     \ Scroll test
     8 GFX-SCROLL-UP2
     FB-SWAP
