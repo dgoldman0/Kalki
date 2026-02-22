@@ -545,7 +545,7 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
             _ER-CURCOL @ FONT-W *
             _ER-AX @ ED-PAD + GUTTER-PX + +           ( cursor-y cursor-x )
             SWAP                                      ( cx cy )
-            CLR-CURSOR SWAP ROT 2 FONT-H FAST-RECT
+            CLR-CURSOR ROT ROT 2 FONT-H FAST-RECT
         ELSE DROP THEN
     ELSE DROP THEN
     \ Status bar at bottom of widget
