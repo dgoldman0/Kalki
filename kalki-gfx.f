@@ -5,6 +5,7 @@
 \
 \  Provides:
 \    FAST-HLINE, FAST-VLINE, FAST-RECT, FAST-BOX
+\    GFX-CHAR, GFX-TYPE  (redefined — RGB565 fast path)
 \    CLIP-SET, CLIP-RESET
 \    CL-HLINE, CL-VLINE, CL-RECT, CL-BOX
 \    GFX-BLIT2, GFX-SCROLL-UP2
@@ -98,6 +99,50 @@ REQUIRE graphics.f
         GFX-DC @ GFX-DX @ GFX-DW @ + 1-
         GFX-DY @ 1+ GFX-DH @ 2 - FAST-VLINE
     THEN ;
+
+\ GFX-CHAR ( char x y color -- )   [REDEFINED — RGB565 fast path]
+\   Render an 8×8 glyph directly in RGB565 mode.
+\   Computes row address once per row, uses direct W! — no CASE dispatch.
+\   Shadows the slow generic GFX-CHAR from graphics.f (~3× faster).
+VARIABLE _FC-CLR
+VARIABLE _FC-ADDR
+
+: GFX-CHAR  ( char x y color -- )
+    _FC-CLR !                          ( char x y )
+    GFX-ADDR _FC-ADDR !               ( char )
+    GFX-GLYPH                         ( glyph-addr )
+    8 0 DO                             \ 8 rows
+        DUP I + C@                     ( glyph rowbits )
+        _FC-ADDR @                     ( glyph rowbits addr )
+        8 0 DO                         ( glyph rowbits addr )
+            OVER 0x80 AND IF
+                _FC-CLR @ OVER W!
+            THEN
+            2 +                        \ advance addr by 2 bytes (1 pixel)
+            SWAP 1 LSHIFT SWAP        \ shift rowbits left
+        LOOP
+        DROP DROP                      ( glyph )
+        _FC-ADDR @ GFX-STR @ + _FC-ADDR !   \ next row
+    LOOP
+    DROP ;
+
+\ GFX-TYPE ( addr len color -- )   [REDEFINED — RGB565 fast path]
+\   Render a string using the fast GFX-CHAR above.
+\   Shadows the slow generic GFX-TYPE from graphics.f.
+: GFX-TYPE  ( addr len color -- )
+    _FC-CLR !                          ( addr len )
+    0 DO                               ( addr )
+        DUP I + C@                     ( addr char )
+        GFX-CX @ GFX-CY @             ( addr char cx cy )
+        _FC-CLR @                      ( addr char cx cy color )
+        GFX-CHAR                       ( addr )
+        GFX-CX @ 8 + GFX-CX !         \ advance cursor
+        GFX-CX @ GFX-W @ >= IF
+            0 GFX-CX !
+            GFX-CY @ 8 + GFX-CY !
+        THEN
+    LOOP
+    DROP ;
 
 \ =====================================================================
 \  Section 2: Clipping System
@@ -331,7 +376,7 @@ VARIABLE FB-BACK               \ address we draw to (= GFX-FB)
     _T-CYAN   600 450 200 200 CL-RECT   \ partially clipped
     _T-WHITE  80  60  200  80 CL-BOX    \ partially clipped
     CLIP-RESET
-    \ Text (GFX-TYPE uses GFX-PIXEL! which is BPP-aware)
+    \ Text (GFX-TYPE is now RGB565 fast path)
     0 GFX-CX !  320 GFX-CY !
     S" Kalki GFX -- 800x600 RGB565" _T-WHITE GFX-TYPE
     \ Blit test: copy a 32x16 strip from (10,10) to (400,350)
