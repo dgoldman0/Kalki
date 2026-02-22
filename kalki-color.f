@@ -198,7 +198,7 @@ CREATE THEME-OCEAN
     LOOP
     \ Labels
     0 GFX-CX !  210 GFX-CY !
-    S" Kalki Color System — Classic Theme" CLR-TITLE-FG GFX-TYPE
+    S" Kalki Color System - Classic" CLR-TITLE-FG GFX-TYPE
     \ Dark theme preview
     THEME-DARK THEME-LOAD
     #GUI-COLORS 0 DO

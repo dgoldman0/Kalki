@@ -1,23 +1,16 @@
 #!/usr/bin/env bash
 # =====================================================================
-#  boot.sh — Build disk image and boot Megapad-64 with Kalki modules
+#  boot.sh — Build disk image and boot Megapad-64 with Kalki GUI
 # =====================================================================
 #
 #  Usage:
-#    ./boot.sh              # Interactive terminal (text-only)
-#    ./boot.sh --display    # With framebuffer window (pygame)
-#    ./boot.sh --test       # Run smoke test and exit
+#    ./boot.sh              # Interactive with framebuffer window
+#    ./boot.sh --test       # Run smoke tests and exit
 #
-#  What it does:
-#    1. Builds a sample MP64FS disk image (emu/diskutil.py sample)
-#    2. Injects kalki-gfx.f and kalki-color.f as Forth modules
-#    3. Injects kalki-autoexec.f as autoexec.f (replaces default)
-#    4. Boots the emulator with --storage pointing to the image
-#
-#  The boot chain:
-#    BIOS → FSLOAD kdos.f → KDOS startup → autoexec.f
+#  Boot chain:
+#    BIOS → FSLOAD kdos.f → KDOS → autoexec.f
 #    → REQUIRE graphics.f → REQUIRE kalki-gfx.f → REQUIRE kalki-color.f
-#    → REPL (or test commands)
+#    → REPL
 # =====================================================================
 
 set -euo pipefail
@@ -25,57 +18,69 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 EMU_DIR="$SCRIPT_DIR/emu"
 DISK_IMG="$SCRIPT_DIR/kalki.img"
+SCALE=2
 
 # Parse flags
-DISPLAY_FLAG=""
 TEST_MODE=""
 EXTRA_ARGS=()
 
 for arg in "$@"; do
     case "$arg" in
-        --display)  DISPLAY_FLAG="--display" ;;
         --test)     TEST_MODE=1 ;;
         *)          EXTRA_ARGS+=("$arg") ;;
     esac
 done
 
-# ── Step 1: Build base disk image ────────────────────────────────────
-echo "=== Building disk image ==="
+# ── Step 1: Build minimal disk image (KDOS + graphics + Kalki only) ──
+echo "=== Building Kalki disk image ==="
 cd "$EMU_DIR"
-python3 diskutil.py sample -o "$DISK_IMG"
-echo "    Base image: $DISK_IMG"
 
-# ── Step 2: Inject Kalki modules ─────────────────────────────────────
-echo "=== Injecting Kalki modules ==="
+python3 -c "
+from pathlib import Path
+from diskutil import MP64FS, FTYPE_FORTH
 
-# Inject our Forth modules
-python3 diskutil.py inject "$DISK_IMG" "$SCRIPT_DIR/kalki-gfx.f" \
-    -n kalki-gfx.f -t forth
-echo "    + kalki-gfx.f"
+fs = MP64FS()
+fs.format()
 
-python3 diskutil.py inject "$DISK_IMG" "$SCRIPT_DIR/kalki-color.f" \
-    -n kalki-color.f -t forth
-echo "    + kalki-color.f"
+# KDOS -- must be first Forth file (BIOS auto-loads it)
+fs.inject_file('kdos.f', Path('kdos.f').read_bytes(),
+               ftype=FTYPE_FORTH, flags=0x02)
 
-# Replace autoexec.f with our version that loads Kalki modules
-python3 diskutil.py rm "$DISK_IMG" autoexec.f 2>/dev/null || true
-python3 diskutil.py inject "$DISK_IMG" "$SCRIPT_DIR/kalki-autoexec.f" \
-    -n autoexec.f -t forth
-echo "    + autoexec.f (kalki)"
+# Dependencies
+fs.inject_file('graphics.f', Path('graphics.f').read_bytes(),
+               ftype=FTYPE_FORTH)
+fs.inject_file('tools.f', Path('tools.f').read_bytes(),
+               ftype=FTYPE_FORTH)
 
-# ── Step 3: Show disk contents ───────────────────────────────────────
+# Kalki modules
+fs.inject_file('kalki-gfx.f',
+               Path('$SCRIPT_DIR/kalki-gfx.f').read_bytes(),
+               ftype=FTYPE_FORTH)
+fs.inject_file('kalki-color.f',
+               Path('$SCRIPT_DIR/kalki-color.f').read_bytes(),
+               ftype=FTYPE_FORTH)
+
+# Autoexec (loads Kalki modules on boot)
+fs.inject_file('autoexec.f',
+               Path('$SCRIPT_DIR/kalki-autoexec.f').read_bytes(),
+               ftype=FTYPE_FORTH)
+
+fs.save('$DISK_IMG')
+print(f'Kalki disk: 6 files')
+"
+
 echo "=== Disk contents ==="
 python3 diskutil.py ls "$DISK_IMG"
 
-# ── Step 4: Boot ─────────────────────────────────────────────────────
+# ── Step 2: Boot ─────────────────────────────────────────────────────
 echo ""
 echo "=== Booting Megapad-64 ==="
 
 if [[ -n "$TEST_MODE" ]]; then
-    echo "    Mode: smoke test (headless)"
+    echo "    Mode: smoke test"
     cd "$EMU_DIR"
     python3 -c "
-import sys
+import sys, os
 sys.path.insert(0, '.')
 from accel_wrapper import Megapad64, HaltError
 from system import MegapadSystem
@@ -88,7 +93,6 @@ sys_emu = MegapadSystem(ram_size=1024*1024,
                         storage_image='$DISK_IMG',
                         ext_mem_size=16*1024*1024)
 out_fd = sys.stdout.fileno()
-import os
 sys_emu.uart.on_tx = lambda b: os.write(out_fd, bytes([b]))
 sys_emu.load_binary(0, bios_code)
 sys_emu.boot()
@@ -108,22 +112,19 @@ def run_until_idle(max_steps=2_000_000_000):
     return total
 
 run_until_idle()
-
-# Run both smoke tests
 for cmd in ['KALKI-GFX-TEST', 'KALKI-COLOR-TEST']:
     sys_emu.uart.inject_input((cmd + '\n').encode())
     run_until_idle(500_000_000)
 
 print()
-print('=== All smoke tests passed ===')
+print('=== Smoke tests complete ===')
 "
 else
-    echo "    Mode: interactive"
-    echo "    Type 'KALKI-GFX-TEST' or 'KALKI-COLOR-TEST' to test."
+    echo "    Type KALKI-GFX-TEST or KALKI-COLOR-TEST to test."
     echo "    Ctrl-C to exit."
     echo ""
     cd "$EMU_DIR"
     python3 cli.py --bios bios.asm --storage "$DISK_IMG" \
-        --extmem 16 $DISPLAY_FLAG \
+        --extmem 16 --display --scale "$SCALE" \
         "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}"
 fi

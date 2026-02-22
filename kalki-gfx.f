@@ -303,7 +303,7 @@ VARIABLE FB-BACK               \ address we draw to (= GFX-FB)
     CLIP-RESET
     \ Text
     0 GFX-CX !  220 GFX-CY !
-    S" Kalki GFX Phase 0 — OK" 15 GFX-TYPE
+    S" Kalki GFX Phase 0 -- OK" 15 GFX-TYPE
     \ Blit test: copy a 32x16 strip from (10,10) to (300,250)
     10 10 GFX-ADDR              ( src )
     300 250 32 16 GFX-BLIT2
