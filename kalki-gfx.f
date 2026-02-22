@@ -273,10 +273,10 @@ VARIABLE FB-BACK               \ address we draw to (= GFX-FB)
 \ =====================================================================
 
 \ KALKI-GFX-INIT ( w h -- )
-\   Initialize for Kalki: 8bpp mode, HBW for tile acceleration,
-\   double buffered, clip to full screen.
+\   Initialize for Kalki: 8bpp mode, dedicated VRAM (falls back to
+\   ext-mem or HBW automatically), double buffered, clip to full screen.
 : KALKI-GFX-INIT
-    0 GFX-INIT-HBW
+    0 GFX-INIT
     FB-INIT-DOUBLE
     CLIP-RESET ;
 
