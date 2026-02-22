@@ -351,6 +351,7 @@ VARIABLE _GLE-GB
 
 4  CONSTANT LINENUM-W            \ digits for line number column
 2  CONSTANT LINENUM-PAD          \ padding after line numbers
+4  CONSTANT ED-PAD               \ inner padding (pixels) around text area
 
 \ Total left margin in pixels for the line number gutter
 LINENUM-W LINENUM-PAD + TEXT-WIDTH CONSTANT GUTTER-PX
@@ -364,6 +365,7 @@ VARIABLE _ER-W    VARIABLE _ER-H
 VARIABLE _ER-WG   VARIABLE _ER-ED
 VARIABLE _ER-GB
 VARIABLE _ER-CURLINE  VARIABLE _ER-CURCOL
+VARIABLE _ER-NLINES                      \ cached total line count
 
 : _ED-SETUP  ( widget -- )
     DUP _ER-WG !
@@ -392,9 +394,9 @@ VARIABLE _ERL-X  VARIABLE _ERL-Y  VARIABLE _ERL-LN  VARIABLE _ERL-POS
 VARIABLE _ERL-CNT
 : _ED-RENDER-LINE  ( screen-line line# -- )
     _ERL-LN !                    ( screen-line )
-    FONT-H * _ER-AY @ +         ( y-pixel )
+    FONT-H * _ER-AY @ + ED-PAD + ( y-pixel with top pad )
     _ERL-Y !
-    _ER-AX @ _ERL-X !           ( -- )
+    _ER-AX @ ED-PAD + _ERL-X !  ( -- )
     \ Draw line number (right-justified in gutter)
     _ERL-X @ GFX-CX !
     _ERL-Y @ GFX-CY !
@@ -433,10 +435,10 @@ VARIABLE _ERL-CNT
     FAST-RECT
     \ Line number gutter background (overwrites left strip)
     CLR-WIN-BG
-    _ER-AX @
-    _ER-AY @
+    _ER-AX @ ED-PAD +
+    _ER-AY @ ED-PAD +
     GUTTER-PX
-    _ER-H @ FONT-H 2 + -
+    _ER-H @ FONT-H 2 + - ED-PAD 2* -
     FAST-RECT
     \ Compute cursor line/col
     _ER-GB @ GAP-CURSOR _ER-GB @ _GB-POS-TO-LINE
@@ -450,33 +452,32 @@ VARIABLE _ERL-CNT
         _ER-ED @ ED.SCROLL !
     THEN
     \ Render visible lines
-    \ _GB-COUNT-LINES is now O(1) via cached GB.LINES
-    _ER-GB @ _GB-COUNT-LINES     ( total-lines )
+    _ER-GB @ _GB-COUNT-LINES _ER-NLINES !
     _ER-ED @ ED.VLINES @ 0 DO
         I _ER-ED @ ED.SCROLL @ +
-        DUP OVER >= IF DROP LEAVE THEN
+        DUP _ER-NLINES @ >= IF DROP LEAVE THEN
         I SWAP _ED-RENDER-LINE
-    LOOP DROP
+    LOOP
     \ Draw cursor (thin 2px bar)
     _ER-CURLINE @ _ER-ED @ ED.SCROLL @ - DUP 0 >= IF
         DUP _ER-ED @ ED.VLINES @ < IF
-            FONT-H * _ER-AY @ +                     ( cursor-y )
+            FONT-H * _ER-AY @ + ED-PAD +             ( cursor-y )
             _ER-CURCOL @ FONT-W *
-            _ER-AX @ GUTTER-PX + +                   ( cursor-y cursor-x )
+            _ER-AX @ ED-PAD + GUTTER-PX + +           ( cursor-y cursor-x )
             SWAP                                      ( cx cy )
             CLR-CURSOR SWAP ROT 2 FONT-H FAST-RECT
         ELSE DROP THEN
     ELSE DROP THEN
     \ Status bar at bottom of widget
     CLR-BTN-FACE
-    _ER-AX @
-    _ER-AY @ _ER-H @ + FONT-H 2 + -
-    _ER-W @
+    _ER-AX @ ED-PAD +
+    _ER-AY @ _ER-H @ + FONT-H 2 + - ED-PAD -
+    _ER-W @ ED-PAD 2* -
     FONT-H 2 +
     FAST-RECT
     \ Status text: filename  L#:C#  [modified]
-    _ER-AX @ 4 + GFX-CX !
-    _ER-AY @ _ER-H @ + FONT-H - 1 - GFX-CY !
+    _ER-AX @ ED-PAD + 4 + GFX-CX !
+    _ER-AY @ _ER-H @ + ED-PAD - FONT-H - 1 - GFX-CY !
     _ER-ED @ ED.FNAME @ _ER-ED @ ED.FNLEN @
     CLR-TEXT GFX-TYPE
     S"  L" CLR-TEXT GFX-TYPE
@@ -636,9 +637,9 @@ VARIABLE _EK-GB   VARIABLE _EK-ED  VARIABLE _EK-WG
     GAP-INIT OVER ED.GB !
     \ Compute visible lines/cols from widget height
     \ Visible area = widget height - status bar (FONT-H+2)
-    _F-H @ FONT-H 2 + - FONT-H /     ( widget data vis-lines )
+    _F-H @ FONT-H 2 + - ED-PAD 2* - FONT-H /   ( widget data vis-lines )
     OVER ED.VLINES !
-    _F-W @ GUTTER-PX - FONT-W /       ( widget data vis-cols )
+    _F-W @ GUTTER-PX - ED-PAD 2* - FONT-W /     ( widget data vis-cols )
     OVER ED.VCOLS !
     0 OVER ED.SCROLL !
     DROP                                ( widget )
@@ -696,6 +697,12 @@ VARIABLE _EDIT-WG
 CREATE _EDIT-FNAME 24 ALLOT     \ local copy of filename
 VARIABLE _EDIT-FNLEN
 
+\ _DESKTOP-RENDER ( widget -- )
+\   Root widget render: fills entire screen with desktop color.
+\   Ensures both double-buffers get the desktop background.
+: _DESKTOP-RENDER ( widget -- )
+    DROP CLR-DESKTOP 0 0 800 600 FAST-RECT ;
+
 \ EDIT ( "filename" -- )
 \   Open a file in a full-screen editor window.
 \   Uses EKEY loop; Ctrl-S saves; Esc closes.
@@ -715,7 +722,7 @@ VARIABLE _EDIT-FNLEN
     \ Root
     WGT-ROOT WG-ALLOC DUP _EDIT-ROOT !
     0 0 800 600 WG-SET-RECT DROP
-    CLR-DESKTOP 0 0 800 600 FAST-RECT
+    ['] _DESKTOP-RENDER _EDIT-ROOT @ WG.RENDER !
     \ Editor window — full screen with margins
     10 10 780 580
     _EDIT-FNAME _EDIT-FNLEN @
@@ -731,7 +738,10 @@ VARIABLE _EDIT-FNLEN
     _EDIT-FNAME _EDIT-FNLEN @ _EDIT-WG @ _ED-SET-FILENAME
     _EDIT-WG @ _ED-LOAD-FILE
     _EDIT-WG @ FOCUS
-    \ Render
+    \ Render both buffers so double-buffering shows consistent content
+    _EDIT-ROOT @ MARK-ALL-DIRTY
+    _EDIT-ROOT @ RENDER-TREE
+    FB-SWAP
     _EDIT-ROOT @ MARK-ALL-DIRTY
     _EDIT-ROOT @ RENDER-TREE
     FB-SWAP
@@ -749,9 +759,10 @@ VARIABLE _EDIT-FNLEN
         \ Deliver to editor widget
         DUP _EDIT-WG @ EDITOR-KEY IF
             DROP
-            \ Re-render — editor widget is already marked dirty
-            \ by EDITOR-KEY; skip MARK-ALL-DIRTY so only the
-            \ editor repaints (window frame stays untouched).
+            \ Re-render — must MARK-ALL-DIRTY because double-buffered
+            \ FB-SWAP alternates buffers; partial repaint would leave
+            \ stale content in the alternate buffer.
+            _EDIT-ROOT @ MARK-ALL-DIRTY
             _EDIT-ROOT @ RENDER-TREE
             FB-SWAP
         ELSE
