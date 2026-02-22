@@ -378,37 +378,60 @@ VARIABLE _LST-CNT                      \ entries actually filled
 \ _BUILD-LINE-STARTS ( scroll-line count gb -- )
 \   Single O(N) pass: scan from pos 0 counting newlines.
 \   Record start-of-line offsets for lines [scroll..scroll+count).
-\   Much cheaper than calling _GB-LINE-START N times.
+\   Also computes cursor line/col as a side effect (stored in
+\   _BLS-CUR-LINE / _BLS-CUR-COL) to avoid a separate O(pos) scan.
 VARIABLE _BLS-GB  VARIABLE _BLS-WANT  VARIABLE _BLS-END
+VARIABLE _BLS-CPOS                     \ cursor position to find
+VARIABLE _BLS-CUR-LINE  VARIABLE _BLS-CUR-COL
+VARIABLE _BLS-FOUND                    \ cursor found flag
 : _BUILD-LINE-STARTS  ( scroll count gb -- )
     _BLS-GB !
     OVER + _LST-MAX MIN _BLS-END !   \ last line# to capture (excl)
     _BLS-WANT !                      \ first line# to capture
     0 _LST-CNT !
+    _BLS-GB @ GAP-CURSOR _BLS-CPOS !  \ record cursor pos
+    0 _BLS-CUR-LINE !  0 _BLS-CUR-COL !  0 _BLS-FOUND !
     0                                  ( cur-line )
     \ Line 0 always starts at pos 0
     DUP _BLS-WANT @ = IF
         0 _LST-TBL !  1 _LST-CNT !
     THEN
-    _BLS-GB @ GAP-LENGTH             ( cur-line total-len )
-    0 DO                              ( cur-line )
+    0                                  ( cur-line col )
+    _BLS-GB @ GAP-LENGTH             ( cur-line col total-len )
+    0 DO                              ( cur-line col )
+        \ Check if this position is the cursor
+        _BLS-FOUND @ 0= IF
+            I _BLS-CPOS @ = IF
+                OVER _BLS-CUR-LINE !  DUP _BLS-CUR-COL !
+                -1 _BLS-FOUND !
+            THEN
+        THEN
         I _BLS-GB @ GAP-CHAR@ 10 = IF
-            1+                        ( cur-line+1 )
-            DUP _BLS-WANT @ >= IF
-                DUP _BLS-END @ < IF
-                    DUP _BLS-WANT @ -  \ table index
+            DROP 0                    \ reset col to 0
+            SWAP 1+ SWAP             ( cur-line+1 col=0 )
+            OVER _BLS-WANT @ >= IF
+                OVER _BLS-END @ < IF
+                    OVER _BLS-WANT @ -  \ table index
                     8 * _LST-TBL +
                     I 1+ SWAP !        \ store pos (after the LF)
                     _LST-CNT @ 1+ _LST-CNT !
                 THEN
             THEN
-            \ Early exit if table is full
+            \ Early exit if table full AND cursor found
             _LST-CNT @ _BLS-END @ _BLS-WANT @ - >= IF
-                DROP UNLOOP EXIT
+                _BLS-FOUND @ IF
+                    2DROP UNLOOP EXIT
+                THEN
             THEN
+        ELSE
+            1+                        \ advance col
         THEN
     LOOP
-    DROP ;
+    \ Cursor might be at end-of-buffer (past last char)
+    _BLS-FOUND @ 0= IF
+        OVER _BLS-CUR-LINE !  DUP _BLS-CUR-COL !
+    THEN
+    2DROP ;
 
 \ _LST-GET ( screen-line -- pos )
 \   Retrieve pre-computed line start for a screen line (0-based index).
@@ -489,23 +512,28 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
     GUTTER-PX
     _ER-H @ FONT-H 2 + - ED-PAD 2* -
     FAST-RECT
-    \ Compute cursor line/col
-    _ER-GB @ GAP-CURSOR _ER-GB @ _GB-POS-TO-LINE
-    _ER-CURCOL !  _ER-CURLINE !
-    \ Ensure cursor is visible (auto-scroll)
-    _ER-CURLINE @ _ER-ED @ ED.SCROLL @ < IF
-        _ER-CURLINE @ _ER-ED @ ED.SCROLL !
-    THEN
-    _ER-CURLINE @ _ER-ED @ ED.SCROLL @ _ER-ED @ ED.VLINES @ + >= IF
-        _ER-CURLINE @ _ER-ED @ ED.VLINES @ - 1+ 0 MAX
-        _ER-ED @ ED.SCROLL !
-    THEN
-    \ Build line-start table (single O(N) pass)
+    \ Build line-start table + cursor line/col (single O(N) pass)
     _ER-GB @ _GB-COUNT-LINES _ER-NLINES !
     _ER-ED @ ED.SCROLL @
     _ER-ED @ ED.VLINES @ _ER-NLINES @ _ER-ED @ ED.SCROLL @ - MIN
     _ER-GB @
     _BUILD-LINE-STARTS
+    _BLS-CUR-COL @ _ER-CURCOL !
+    _BLS-CUR-LINE @ _ER-CURLINE !
+    \ Ensure cursor is visible (auto-scroll); rebuild table if changed
+    _ER-CURLINE @ _ER-ED @ ED.SCROLL @ < IF
+        _ER-CURLINE @ _ER-ED @ ED.SCROLL !
+        _ER-ED @ ED.SCROLL @
+        _ER-ED @ ED.VLINES @ _ER-NLINES @ _ER-ED @ ED.SCROLL @ - MIN
+        _ER-GB @ _BUILD-LINE-STARTS
+    THEN
+    _ER-CURLINE @ _ER-ED @ ED.SCROLL @ _ER-ED @ ED.VLINES @ + >= IF
+        _ER-CURLINE @ _ER-ED @ ED.VLINES @ - 1+ 0 MAX
+        _ER-ED @ ED.SCROLL !
+        _ER-ED @ ED.SCROLL @
+        _ER-ED @ ED.VLINES @ _ER-NLINES @ _ER-ED @ ED.SCROLL @ - MIN
+        _ER-GB @ _BUILD-LINE-STARTS
+    THEN
     \ Render visible lines using pre-built table
     _LST-CNT @ 0 DO
         I I _ER-ED @ ED.SCROLL @ + _ED-RENDER-LINE
