@@ -142,14 +142,10 @@ VARIABLE _FF-RESULT
         RD-AX @ RD-W @ + WIN-BORDER - FONT-W - 4 - GFX-CX !
         RD-AY @ WIN-BORDER + TITLE-BAR-H FONT-H - 2 / + GFX-CY !
         S" x" CLR-TITLE-FG GFX-TYPE
-    THEN
-    \ Client area background
-    CLR-WIN-BG
-    RD-AX @ WIN-BORDER +
-    RD-AY @ WIN-CLIENT-Y +
-    RD-W @ WIN-BORDER 2* -
-    RD-H @ WIN-CLIENT-Y - WIN-BORDER -
-    FAST-RECT ;
+    THEN ;
+    \ Client area is NOT filled here — children paint their own
+    \ backgrounds.  This avoids a ~436K pixel fill that would be
+    \ immediately overwritten by the editor or other child widgets.
 
 \ Window key handler — stub; children handle their own keys.
 : WINDOW-KEY  ( key widget -- consumed? )
