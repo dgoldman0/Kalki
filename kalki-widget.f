@@ -119,7 +119,7 @@ WGF-VISIBLE WGF-DIRTY OR CONSTANT WGF-DEFAULT
 : WG-DESTROY  ( widget -- )
     DUP 0= IF DROP EXIT THEN
     DUP WG.DTOR @ DUP IF OVER SWAP EXECUTE ELSE DROP THEN
-    DUP WG.DATA @ DUP IF FREE THEN DROP
+    DUP WG.DATA @ ?DUP IF FREE THEN
     FREE ;
 
 \ =====================================================================
