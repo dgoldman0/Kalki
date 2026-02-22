@@ -175,9 +175,9 @@ CREATE THEME-OCEAN
 
 \ CLR>RGB ( idx -- rgb )
 \   Read back the RGB value currently programmed for a palette index.
-\   Useful for color mixing or debug display.
-: CLR>RGB
-    FB-PAL@ ;
+\   NOTE: Requires FB-PAL@ (not available in current BIOS).
+\   Future: add FB-PAL@ to BIOS or implement palette shadow table.
+\ : CLR>RGB  FB-PAL@ ;
 
 \ =====================================================================
 \  Section 5: Color Demo

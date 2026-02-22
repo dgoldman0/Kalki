@@ -125,7 +125,7 @@ VARIABLE CV-H                  \ CL-VLINE: length
     \ X range: intersect [x, x+len) with [CLIP-X0, CLIP-X1)
     CL-X @ CLIP-X0 @ MAX CL-X0V !
     CL-X @ CL-W @ + CLIP-X1 @ MIN CL-X0V @ -
-    DUP 0<= IF DROP EXIT THEN
+    DUP 0 <= IF DROP EXIT THEN
     CL-WC !
     CL-C @ CL-X0V @ CL-Y @ CL-WC @ FAST-HLINE ;
 
@@ -140,7 +140,7 @@ VARIABLE CV-H                  \ CL-VLINE: length
     CV-Y @ CV-H @ + CLIP-Y1 @ MIN      ( bottom' )
     CV-Y @ CLIP-Y0 @ MAX               ( bottom' top' )
     TUCK -                              ( top' len' )
-    DUP 0<= IF 2DROP EXIT THEN         ( top' len' )
+    DUP 0 <= IF 2DROP EXIT THEN        ( top' len' )
     CV-C @ CV-X @ 2SWAP                ( color x top' len' )
     FAST-VLINE ;
 
@@ -152,12 +152,12 @@ VARIABLE CV-H                  \ CL-VLINE: length
     \ Clip Y range
     CL-Y @ CLIP-Y0 @ MAX CL-Y0V !
     CL-Y @ CL-H @ + CLIP-Y1 @ MIN CL-Y0V @ -
-    DUP 0<= IF DROP EXIT THEN
+    DUP 0 <= IF DROP EXIT THEN
     CL-HC !
     \ Clip X range
     CL-X @ CLIP-X0 @ MAX CL-X0V !
     CL-X @ CL-W @ + CLIP-X1 @ MIN CL-X0V @ -
-    DUP 0<= IF DROP EXIT THEN
+    DUP 0 <= IF DROP EXIT THEN
     CL-WC !
     \ Draw
     CL-HC @ 0 DO
