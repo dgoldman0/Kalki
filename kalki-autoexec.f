@@ -32,7 +32,9 @@ REQUIRE tools.f
 REQUIRE kalki-gfx.f
 REQUIRE kalki-color.f
 REQUIRE kalki-widget.f
+REQUIRE kalki-basic.f
 
 \ ── Banner ───────────────────────────────────────────────────────────
 ." Kalki GUI Framework loaded." CR
-." Commands: KALKI-GFX-TEST  KALKI-COLOR-TEST  KALKI-WIDGET-TEST" CR
+." Commands: KALKI-GFX-TEST  KALKI-COLOR-TEST" CR
+."           KALKI-WIDGET-TEST  KALKI-BASIC-TEST" CR

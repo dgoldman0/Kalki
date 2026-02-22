@@ -201,17 +201,17 @@ WGF-VISIBLE WGF-DIRTY OR CONSTANT WGF-DEFAULT
     DUP 0= IF 2DROP EXIT THEN
     DUP WG-VISIBLE? 0= IF 2DROP EXIT THEN
     2DUP SWAP EXECUTE           ( xt widget )  \ visit self
-    2DUP SWAP                   ( xt widget xt widget )
+    2DUP                         ( xt widget xt widget )
     WG.CHILD1 @ RECURSE         ( xt widget )  \ visit children
-    SWAP WG.NEXT @ RECURSE ;    \ visit siblings
+    WG.NEXT @ RECURSE ;          \ visit siblings
 
 \ WG-WALK-REV ( xt root -- )
 \   Walk siblings first, then children (reverse order for hit-testing).
 : WG-WALK-REV  ( xt widget -- )
     DUP 0= IF 2DROP EXIT THEN
     DUP WG-VISIBLE? 0= IF 2DROP EXIT THEN
-    2DUP SWAP WG.NEXT @ RECURSE ( xt widget )  \ siblings first
-    2DUP SWAP                   ( xt widget xt widget )
+    2DUP WG.NEXT @ RECURSE      ( xt widget )  \ siblings first
+    2DUP                         ( xt widget xt widget )
     WG.CHILD1 @ RECURSE         ( xt widget )  \ children
     SWAP EXECUTE ;              \ visit self last
 
@@ -353,7 +353,7 @@ CREATE CLIP-STACK  MAX-CLIP-DEPTH 4 * CELLS ALLOT   \ 4 values per level
     SWAP WG.H @                 ( ax ay w h )
     \ Compute widget's absolute bounds: ax ay ax+w ay+h
     2OVER                        ( ax ay w h ax ay )
-    4 PICK +                     ( ax ay w h ax ay+h )
+    2 PICK +                     ( ax ay w h ax ay+h )
     SWAP 3 PICK +                ( ax ay w h ay+h ax+w )
     SWAP                         ( ax ay w h x2 y2 )
     2SWAP 2DROP                  ( ax ay x2 y2 )
@@ -382,16 +382,13 @@ CREATE CLIP-STACK  MAX-CLIP-DEPTH 4 * CELLS ALLOT   \ 4 values per level
     CLIP-PUSH
     DUP WG-CLIP-TO
     DUP RENDER-WIDGET
-    \ Render children
-    DUP WG.CHILD1 @
+    \ Render children (NOT siblings -- the parent's loop handles that)
+    WG.CHILD1 @
     BEGIN DUP 0<> WHILE
         DUP RECURSE
         WG.NEXT @
     REPEAT DROP
-    CLIP-POP
-    \ Visit next sibling (same clip level as parent)
-    WG.NEXT @
-    DUP 0<> IF RECURSE ELSE DROP THEN ;
+    CLIP-POP ;
 
 : RENDER-TREE  ( root -- )
     0 CLIP-SP !
@@ -425,7 +422,7 @@ CREATE CLIP-STACK  MAX-CLIP-DEPTH 4 * CELLS ALLOT   \ 4 values per level
     \ Send to focused widget, bubble up on reject
     FOCUS-WIDGET @             ( key widget )
     BEGIN DUP 0<> WHILE
-        2DUP WG.ONKEY @ EXECUTE  ( key widget consumed? )
+        2DUP DUP WG.ONKEY @ EXECUTE  ( key widget consumed? )
         IF 2DROP -1 EXIT THEN
         WG.PARENT @
     REPEAT
@@ -495,6 +492,7 @@ VARIABLE _T-P2    VARIABLE _T-BTN
     FOCUS-NEXT
     ."   After Tab: " FOCUS-WIDGET @ WG.TYPE @ . CR
     \ Clean up
+    0 FOCUS-WIDGET !            \ clear before freeing widgets
     _T-BTN @ WG-FREE
     _T-P1 @ WG-FREE
     _T-P2 @ WG-FREE

@@ -62,6 +62,9 @@ fs.inject_file('kalki-color.f',
 fs.inject_file('kalki-widget.f',
                Path('$SCRIPT_DIR/kalki-widget.f').read_bytes(),
                ftype=FTYPE_FORTH)
+fs.inject_file('kalki-basic.f',
+               Path('$SCRIPT_DIR/kalki-basic.f').read_bytes(),
+               ftype=FTYPE_FORTH)
 
 # Autoexec (loads Kalki modules on boot)
 fs.inject_file('autoexec.f',
@@ -69,7 +72,7 @@ fs.inject_file('autoexec.f',
                ftype=FTYPE_FORTH)
 
 fs.save('$DISK_IMG')
-print(f'Kalki disk: 7 files')
+print(f'Kalki disk: 8 files')
 "
 
 echo "=== Disk contents ==="
@@ -115,7 +118,7 @@ def run_until_idle(max_steps=2_000_000_000):
     return total
 
 run_until_idle()
-for cmd in ['KALKI-GFX-TEST', 'KALKI-COLOR-TEST', 'KALKI-WIDGET-TEST']:
+for cmd in ['KALKI-GFX-TEST', 'KALKI-COLOR-TEST', 'KALKI-WIDGET-TEST', 'KALKI-BASIC-TEST']:
     sys_emu.uart.inject_input((cmd + '\n').encode())
     run_until_idle(500_000_000)
 
@@ -123,7 +126,7 @@ print()
 print('=== Smoke tests complete ===')
 "
 else
-    echo "    Type KALKI-GFX-TEST, KALKI-COLOR-TEST, or KALKI-WIDGET-TEST to test."
+    echo "    Type KALKI-BASIC-TEST to test widgets (or GFX/COLOR/WIDGET)."
     echo "    Ctrl-C to exit."
     echo ""
     cd "$EMU_DIR"
