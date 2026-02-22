@@ -148,6 +148,34 @@ CREATE THEME-OCEAN
     0x27AE60 ,    \ 23 success
     0xF39C12 ,    \ 24 warning
 
+\ Modern theme — dark flat design with accent colors (VS Code inspired)
+CREATE THEME-MODERN
+    0x000000 ,    \  0 black
+    0x181818 ,    \  1 desktop (charcoal)
+    0x1E1E1E ,    \  2 window bg (dark)
+    0x333333 ,    \  3 window border (subtle)
+    0x007ACC ,    \  4 title bar bg (accent blue)
+    0xFFFFFF ,    \  5 title bar text
+    0x2D2D2D ,    \  6 inactive title (flat dark)
+    0xCCCCCC ,    \  7 text (light gray)
+    0x5A5A5A ,    \  8 dim text
+    0x264F78 ,    \  9 highlight bg (muted blue)
+    0xFFFFFF ,    \ 10 highlight text
+    0x333333 ,    \ 11 button face (flat dark)
+    0x444444 ,    \ 12 button light
+    0x1A1A1A ,    \ 13 button shadow
+    0x111111 ,    \ 14 button dark
+    0x252526 ,    \ 15 menu bg
+    0x094771 ,    \ 16 menu selection
+    0x1E1E1E ,    \ 17 scrollbar bg
+    0x424242 ,    \ 18 scrollbar fg
+    0x1E1E1E ,    \ 19 edit bg (dark)
+    0xCCCCCC ,    \ 20 edit fg (light text)
+    0x528BFF ,    \ 21 cursor (bright blue)
+    0xF44747 ,    \ 22 error (red)
+    0x6A9955 ,    \ 23 success (green)
+    0xCCA700 ,    \ 24 warning (amber)
+
 \ =====================================================================
 \  Section 3: Theme Loading
 \ =====================================================================
@@ -164,9 +192,9 @@ CREATE THEME-OCEAN
     DROP ;
 
 \ KALKI-PAL-INIT ( -- )
-\   Load the default (Classic) GUI palette into CLR-TABLE.
+\   Load the default (MODERN) GUI palette into CLR-TABLE.
 : KALKI-PAL-INIT
-    THEME-CLASSIC THEME-LOAD ;
+    THEME-MODERN THEME-LOAD ;
 
 \ =====================================================================
 \  Section 4: Convenience Helpers
@@ -197,7 +225,7 @@ CREATE THEME-OCEAN
     LOOP
     \ Labels
     20 GFX-CX !  260 GFX-CY !
-    S" Kalki Color System - Classic" CLR-TITLE-FG GFX-TYPE
+    S" Kalki Color System - Modern" CLR-TITLE-FG GFX-TYPE
     \ Dark theme preview
     THEME-DARK THEME-LOAD
     #GUI-COLORS 0 DO
@@ -206,7 +234,7 @@ CREATE THEME-OCEAN
     LOOP
     20 GFX-CX !  550 GFX-CY !
     S" Dark Theme" CLR-TITLE-FG GFX-TYPE
-    \ Restore classic
+    \ Restore default
     KALKI-PAL-INIT
     FB-SWAP
     ." kalki-color test complete" CR ;

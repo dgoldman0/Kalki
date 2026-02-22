@@ -352,6 +352,7 @@ VARIABLE _GLE-GB
 4  CONSTANT LINENUM-W            \ digits for line number column
 2  CONSTANT LINENUM-PAD          \ padding after line numbers
 4  CONSTANT ED-PAD               \ inner padding (pixels) around text area
+16 CONSTANT SBAR-H               \ status bar height (pixels)
 
 \ Total left margin in pixels for the line number gutter
 LINENUM-W LINENUM-PAD + TEXT-WIDTH CONSTANT GUTTER-PX
@@ -458,7 +459,7 @@ VARIABLE _BLS-FOUND                    \ cursor found flag
     CLR-TEXT-DIM GFX-TYPE ;
 
 \ _ED-RENDER-LINE ( screen-line line# -- )
-\   Render one line of text at y = screen-line * FONT-H + editor-abs-y.
+\   Render one line of text at y = screen-line * LINE-H + editor-abs-y.
 \   line# is 0-based absolute line number.
 \   Extracts the line into _LINE-BUF for a single GFX-TYPE call.
 VARIABLE _ERL-X  VARIABLE _ERL-Y  VARIABLE _ERL-LN  VARIABLE _ERL-POS
@@ -466,7 +467,7 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
 : _ED-RENDER-LINE  ( screen-line line# -- )
     _ERL-LN !                    ( screen-line )
     DUP _ERL-SL !                \ save screen-line for table lookup
-    FONT-H * _ER-AY @ + ED-PAD + ( y-pixel with top pad )
+    LINE-H * _ER-AY @ + ED-PAD + ( y-pixel with top pad )
     _ERL-Y !
     _ER-AX @ ED-PAD + _ERL-X !  ( -- )
     \ Draw line number (right-justified in gutter)
@@ -495,22 +496,22 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
     _ED-SETUP
     \ Editor widget area is already at absolute coords (ax, ay, w, h).
     \ No WIN-CLIENT offsets needed — they are baked into WG-ABS-X/Y.
-    \ Layout: text area = (ax, ay, w, h - statusH)  statusH = FONT-H+2
+    \ Layout: text area = (ax, ay, w, h - SBAR-H)
     \         gutter in left GUTTER-PX of text area
-    \         status bar at (ax, ay+h-statusH, w, statusH)
-    \ Text area background (white)
+    \         status bar at (ax, ay+h-SBAR-H, w, SBAR-H)
+    \ Text area background
     CLR-EDIT-BG
     _ER-AX @
     _ER-AY @
     _ER-W @
-    _ER-H @ FONT-H 2 + -
+    _ER-H @ SBAR-H -
     FAST-RECT
-    \ Line number gutter background (overwrites left strip)
-    CLR-WIN-BG
+    \ Line number gutter background (seamless with editor bg)
+    CLR-EDIT-BG
     _ER-AX @ ED-PAD +
     _ER-AY @ ED-PAD +
     GUTTER-PX
-    _ER-H @ FONT-H 2 + - ED-PAD 2* -
+    _ER-H @ SBAR-H - ED-PAD 2* -
     FAST-RECT
     \ Build line-start table + cursor line/col (single O(N) pass)
     _ER-GB @ _GB-COUNT-LINES _ER-NLINES !
@@ -541,31 +542,31 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
     \ Draw cursor (thin 2px bar)
     _ER-CURLINE @ _ER-ED @ ED.SCROLL @ - DUP 0 >= IF
         DUP _ER-ED @ ED.VLINES @ < IF
-            FONT-H * _ER-AY @ + ED-PAD +             ( cursor-y )
+            LINE-H * _ER-AY @ + ED-PAD +             ( cursor-y )
             _ER-CURCOL @ FONT-W *
             _ER-AX @ ED-PAD + GUTTER-PX + +           ( cursor-y cursor-x )
             SWAP                                      ( cx cy )
-            CLR-CURSOR ROT ROT 2 FONT-H FAST-RECT
+            CLR-CURSOR ROT ROT 2 LINE-H FAST-RECT
         ELSE DROP THEN
     ELSE DROP THEN
-    \ Status bar at bottom of widget
-    CLR-BTN-FACE
-    _ER-AX @ ED-PAD +
-    _ER-AY @ _ER-H @ + FONT-H 2 + - ED-PAD -
-    _ER-W @ ED-PAD 2* -
-    FONT-H 2 +
+    \ Status bar at bottom of widget (accent-colored, edge-to-edge)
+    CLR-HIGHLIGHT
+    _ER-AX @
+    _ER-AY @ _ER-H @ + SBAR-H -
+    _ER-W @
+    SBAR-H
     FAST-RECT
     \ Status text: filename  L#:C#  [modified]
-    _ER-AX @ ED-PAD + 4 + GFX-CX !
-    _ER-AY @ _ER-H @ + ED-PAD - FONT-H - 1 - GFX-CY !
+    _ER-AX @ 8 + GFX-CX !
+    _ER-AY @ _ER-H @ + SBAR-H - SBAR-H FONT-H - 2 / + GFX-CY !
     _ER-ED @ ED.FNAME @ _ER-ED @ ED.FNLEN @
-    CLR-TEXT GFX-TYPE
-    S"  L" CLR-TEXT GFX-TYPE
-    _ER-CURLINE @ 1+ U>STR CLR-TEXT GFX-TYPE
-    S" :C" CLR-TEXT GFX-TYPE
-    _ER-CURCOL @ 1+ U>STR CLR-TEXT GFX-TYPE
+    CLR-HILITE-FG GFX-TYPE
+    S"  L" CLR-HILITE-FG GFX-TYPE
+    _ER-CURLINE @ 1+ U>STR CLR-HILITE-FG GFX-TYPE
+    S" :C" CLR-HILITE-FG GFX-TYPE
+    _ER-CURCOL @ 1+ U>STR CLR-HILITE-FG GFX-TYPE
     _ER-GB @ GB.DIRTY @ IF
-        S"  [modified]" CLR-ERROR GFX-TYPE
+        S"  [modified]" CLR-WARN GFX-TYPE
     THEN ;
 
 \ =====================================================================
@@ -716,8 +717,8 @@ VARIABLE _EK-GB   VARIABLE _EK-ED  VARIABLE _EK-WG
     \ Init gap buffer
     GAP-INIT OVER ED.GB !
     \ Compute visible lines/cols from widget height
-    \ Visible area = widget height - status bar (FONT-H+2)
-    _F-H @ FONT-H 2 + - ED-PAD 2* - FONT-H /   ( widget data vis-lines )
+    \ Visible area = widget height - status bar (SBAR-H)
+    _F-H @ SBAR-H - ED-PAD 2* - LINE-H /   ( widget data vis-lines )
     OVER ED.VLINES !
     _F-W @ GUTTER-PX - ED-PAD 2* - FONT-W /     ( widget data vis-cols )
     OVER ED.VCOLS !

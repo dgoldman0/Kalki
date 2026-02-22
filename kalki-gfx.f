@@ -28,11 +28,12 @@ REQUIRE graphics.f
 
 \ RGB24>565 ( rgb24 -- rgb565 )
 \   Convert 0x00RRGGBB to 16-bit RGB565 (RRRRRGGGGGGBBBBB).
+\   Extracts the TOP 5/6/5 bits of each 8-bit channel.
 : RGB24>565  ( rgb24 -- rgb565 )
-    DUP 16 RSHIFT 0x1F AND 11 LSHIFT  ( rgb24 r5<<11 )
-    SWAP DUP 8 RSHIFT 0x3F AND 5 LSHIFT  ( r5<<11 rgb24 g6<<5 )
+    DUP 16 RSHIFT 0xFF AND 3 RSHIFT 11 LSHIFT  ( rgb24 r5<<11 )
+    SWAP DUP 8 RSHIFT 0xFF AND 2 RSHIFT 5 LSHIFT  ( r5<<11 rgb24 g6<<5 )
     ROT OR SWAP  ( rg rgb24 )
-    0x1F AND OR ;  ( rgb565 )
+    0xFF AND 3 RSHIFT OR ;  ( rgb565 )
 
 \ WFILL ( addr count color16 -- )
 \   Fill 'count' 16-bit words with color16.  Like FILL but for W!.

@@ -111,10 +111,8 @@ VARIABLE _F-XT    VARIABLE _F-PAR
 
 : BUTTON-RENDER  ( widget -- )
     RD-SETUP
-    \ Fill face
+    \ Flat button face (no bevel)
     CLR-BTN-FACE RD-AX @ RD-AY @ RD-W @ RD-H @ FAST-RECT
-    \ 3D border
-    BEVEL-RAISED
     \ Center text
     RD-WG @ WG.DATA @
     DUP WD.TLEN @ TEXT-WIDTH    ( data text-px-width )
@@ -123,10 +121,10 @@ VARIABLE _F-XT    VARIABLE _F-PAR
     RD-H @ FONT-H - 2 / RD-AY @ + GFX-CY !
     DUP WD.TEXT @ SWAP WD.TLEN @
     CLR-TEXT GFX-TYPE
-    \ Focus indicator: inner outline 2px inset
+    \ Focus indicator: accent-colored outline
     RD-WG @ WGF-FOCUSED WG-FLAG? IF
-        CLR-TEXT RD-AX @ 2 + RD-AY @ 2 +
-        RD-W @ 4 - RD-H @ 4 - FAST-BOX
+        CLR-TITLE-BG RD-AX @ RD-AY @
+        RD-W @ RD-H @ FAST-BOX
     THEN ;
 
 13 CONSTANT K-ENTER
@@ -168,8 +166,8 @@ VARIABLE _F-XT    VARIABLE _F-PAR
     RD-SETUP
     \ Fill background
     CLR-WIN-BG RD-AX @ RD-AY @ RD-W @ RD-H @ FAST-RECT
-    \ Border
-    CLR-BTN-SHADOW RD-AX @ RD-AY @ RD-W @ RD-H @ FAST-BOX
+    \ Subtle border
+    CLR-WIN-BORDER RD-AX @ RD-AY @ RD-W @ RD-H @ FAST-BOX
     \ Title text (if any)
     RD-WG @ WG.DATA @ DUP IF
         DUP WD.TLEN @ 0> IF

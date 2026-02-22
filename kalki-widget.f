@@ -83,7 +83,8 @@ WGF-VISIBLE WGF-DIRTY OR CONSTANT WGF-DEFAULT
 \  Current: built-in 8×8 bitmap font (graphics.f / BIOS).
 
 8 CONSTANT FONT-W               \ glyph advance width (pixels)
-8 CONSTANT FONT-H               \ glyph height / line height (pixels)
+8 CONSTANT FONT-H               \ glyph height (pixels)
+11 CONSTANT LINE-H              \ line height with leading (pixels)
 
 : TEXT-WIDTH  ( n-chars -- pixels )  FONT-W * ;
 

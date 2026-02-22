@@ -25,13 +25,13 @@ REQUIRE kalki-basic.f
 \  Section 1: Constants & Layout
 \ =====================================================================
 
-20 CONSTANT TITLE-BAR-H         \ title bar height in pixels
-1  CONSTANT WIN-BORDER          \ border width in pixels
+28 CONSTANT TITLE-BAR-H         \ title bar height in pixels
+0  CONSTANT WIN-BORDER          \ border width (modern: borderless)
 
 \ Client area origin relative to window top-left:
 \   y = border (1) + title bar (20) + 1 = 22
 \   x = border (1)
-WIN-BORDER TITLE-BAR-H + 1+ CONSTANT WIN-CLIENT-Y
+WIN-BORDER TITLE-BAR-H + CONSTANT WIN-CLIENT-Y
 WIN-BORDER CONSTANT WIN-CLIENT-X
 
 24 CONSTANT /WINDOW-DATA        \ text-addr(8) + text-len(8) + close-xt(8)
@@ -122,30 +122,29 @@ VARIABLE _FF-RESULT
 
 : WINDOW-RENDER  ( widget -- )
     RD-SETUP
-    \ 1-pixel border
-    CLR-WIN-BORDER RD-AX @ RD-AY @ RD-W @ RD-H @ FAST-BOX
-    \ Title bar background — active or inactive
+    \ Window background — flat, borderless modern look
+    CLR-WIN-BG RD-AX @ RD-AY @ RD-W @ RD-H @ FAST-RECT
+    \ Title bar — full-width, flat accent (active) or subdued (inactive)
     RD-WG @ WIN-GET-ACTIVE = IF CLR-TITLE-BG ELSE CLR-TITLE-INACTIVE THEN
-    RD-AX @ WIN-BORDER +
-    RD-AY @ WIN-BORDER +
-    RD-W @ WIN-BORDER 2* -
+    RD-AX @
+    RD-AY @
+    RD-W @
     TITLE-BAR-H
     FAST-RECT
-    \ Title text (vertically centered in title bar, left-padded)
-    RD-AX @ WIN-BORDER + FONT-W + GFX-CX !
-    RD-AY @ WIN-BORDER + TITLE-BAR-H FONT-H - 2 / + GFX-CY !
+    \ Title text (vertically centered, padded from left edge)
+    RD-AX @ 12 + GFX-CX !
+    RD-AY @ TITLE-BAR-H FONT-H - 2 / + GFX-CY !
     RD-WG @ WG.DATA @
     DUP WD.TEXT @ SWAP WD.TLEN @
     CLR-TITLE-FG GFX-TYPE
-    \ Close glyph "x" at right edge (decorative — shown if close-xt set)
+    \ Close glyph at right edge (shown if close-xt set)
     RD-WG @ WG.DATA @ WD.ACTION @ IF
-        RD-AX @ RD-W @ + WIN-BORDER - FONT-W - 4 - GFX-CX !
-        RD-AY @ WIN-BORDER + TITLE-BAR-H FONT-H - 2 / + GFX-CY !
+        RD-AX @ RD-W @ + 12 - GFX-CX !
+        RD-AY @ TITLE-BAR-H FONT-H - 2 / + GFX-CY !
         S" x" CLR-TITLE-FG GFX-TYPE
     THEN ;
-    \ Client area is NOT filled here — children paint their own
-    \ backgrounds.  This avoids a ~436K pixel fill that would be
-    \ immediately overwritten by the editor or other child widgets.
+    \ Window bg fill provides the base surface.  Children paint
+    \ their own backgrounds on top (no separate client-area fill).
 
 \ Window key handler — stub; children handle their own keys.
 : WINDOW-KEY  ( key widget -- consumed? )
@@ -286,7 +285,7 @@ VARIABLE _MB-TITLE  VARIABLE _MB-TITLEN
     _MB-TLEN ! _MB-TEXT !
     \ Compute dialog size
     _MB-TLEN @ TEXT-WIDTH 40 + 200 MAX   ( width )
-    85                                    ( width height )
+    100                                   ( width height )
     _MB-TITLE @ _MB-TITLEN @
     DIALOG
     DUP 0= IF EXIT THEN
@@ -324,7 +323,7 @@ VARIABLE _CONF-YES   VARIABLE _CONF-NO
     _MB-TLEN ! _MB-TEXT !
     \ Compute dialog size
     _MB-TLEN @ TEXT-WIDTH 40 + 220 MAX   ( width )
-    85                                    ( width height )
+    100                                   ( width height )
     S" Confirm"
     DIALOG
     DUP 0= IF EXIT THEN
