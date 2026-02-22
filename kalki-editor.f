@@ -367,6 +367,54 @@ VARIABLE _ER-GB
 VARIABLE _ER-CURLINE  VARIABLE _ER-CURCOL
 VARIABLE _ER-NLINES                      \ cached total line count
 
+\ --- Line-start table (pre-computed once per frame) ---
+\ Stores byte-offset of first char for each visible line.
+\ Index 0 = scroll line, index 1 = scroll+1, etc.
+\ Max 128 visible lines (800px / 8px font = 100, plus margin).
+128 CONSTANT _LST-MAX
+CREATE _LST-TBL _LST-MAX 8 * ALLOT    \ 128 cells
+VARIABLE _LST-CNT                      \ entries actually filled
+
+\ _BUILD-LINE-STARTS ( scroll-line count gb -- )
+\   Single O(N) pass: scan from pos 0 counting newlines.
+\   Record start-of-line offsets for lines [scroll..scroll+count).
+\   Much cheaper than calling _GB-LINE-START N times.
+VARIABLE _BLS-GB  VARIABLE _BLS-WANT  VARIABLE _BLS-END
+: _BUILD-LINE-STARTS  ( scroll count gb -- )
+    _BLS-GB !
+    OVER + _LST-MAX MIN _BLS-END !   \ last line# to capture (excl)
+    _BLS-WANT !                      \ first line# to capture
+    0 _LST-CNT !
+    0                                  ( cur-line )
+    \ Line 0 always starts at pos 0
+    DUP _BLS-WANT @ = IF
+        0 _LST-TBL !  1 _LST-CNT !
+    THEN
+    _BLS-GB @ GAP-LENGTH             ( cur-line total-len )
+    0 DO                              ( cur-line )
+        I _BLS-GB @ GAP-CHAR@ 10 = IF
+            1+                        ( cur-line+1 )
+            DUP _BLS-WANT @ >= IF
+                DUP _BLS-END @ < IF
+                    DUP _BLS-WANT @ -  \ table index
+                    8 * _LST-TBL +
+                    I 1+ SWAP !        \ store pos (after the LF)
+                    _LST-CNT @ 1+ _LST-CNT !
+                THEN
+            THEN
+            \ Early exit if table is full
+            _LST-CNT @ _BLS-END @ _BLS-WANT @ - >= IF
+                DROP UNLOOP EXIT
+            THEN
+        THEN
+    LOOP
+    DROP ;
+
+\ _LST-GET ( screen-line -- pos )
+\   Retrieve pre-computed line start for a screen line (0-based index).
+: _LST-GET  ( idx -- pos )
+    8 * _LST-TBL + @ ;
+
 : _ED-SETUP  ( widget -- )
     DUP _ER-WG !
     DUP WG-ABS-X _ER-AX !
@@ -391,9 +439,10 @@ VARIABLE _ER-NLINES                      \ cached total line count
 \   line# is 0-based absolute line number.
 \   Extracts the line into _LINE-BUF for a single GFX-TYPE call.
 VARIABLE _ERL-X  VARIABLE _ERL-Y  VARIABLE _ERL-LN  VARIABLE _ERL-POS
-VARIABLE _ERL-CNT
+VARIABLE _ERL-CNT  VARIABLE _ERL-SL
 : _ED-RENDER-LINE  ( screen-line line# -- )
     _ERL-LN !                    ( screen-line )
+    DUP _ERL-SL !                \ save screen-line for table lookup
     FONT-H * _ER-AY @ + ED-PAD + ( y-pixel with top pad )
     _ERL-Y !
     _ER-AX @ ED-PAD + _ERL-X !  ( -- )
@@ -403,8 +452,8 @@ VARIABLE _ERL-CNT
     _ERL-LN @ 1+ _ED-RENDER-LINENUM
     \ Set text cursor after gutter
     _ERL-X @ GUTTER-PX + GFX-CX !
-    \ Extract up to VCOLS chars into _LINE-BUF
-    _ERL-LN @ _ER-GB @ _GB-LINE-START _ERL-POS !
+    \ Extract up to VCOLS chars into _LINE-BUF (use pre-built table)
+    _ERL-SL @ _LST-GET _ERL-POS !
     0 _ERL-CNT !
     _ER-ED @ ED.VCOLS @ 0 DO
         _ERL-POS @ _ER-GB @ GAP-LENGTH >= IF LEAVE THEN
@@ -451,12 +500,15 @@ VARIABLE _ERL-CNT
         _ER-CURLINE @ _ER-ED @ ED.VLINES @ - 1+ 0 MAX
         _ER-ED @ ED.SCROLL !
     THEN
-    \ Render visible lines
+    \ Build line-start table (single O(N) pass)
     _ER-GB @ _GB-COUNT-LINES _ER-NLINES !
-    _ER-ED @ ED.VLINES @ 0 DO
-        I _ER-ED @ ED.SCROLL @ +
-        DUP _ER-NLINES @ >= IF DROP LEAVE THEN
-        I SWAP _ED-RENDER-LINE
+    _ER-ED @ ED.SCROLL @
+    _ER-ED @ ED.VLINES @ _ER-NLINES @ _ER-ED @ ED.SCROLL @ - MIN
+    _ER-GB @
+    _BUILD-LINE-STARTS
+    \ Render visible lines using pre-built table
+    _LST-CNT @ 0 DO
+        I I _ER-ED @ ED.SCROLL @ + _ED-RENDER-LINE
     LOOP
     \ Draw cursor (thin 2px bar)
     _ER-CURLINE @ _ER-ED @ ED.SCROLL @ - DUP 0 >= IF
