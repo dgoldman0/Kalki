@@ -35,10 +35,13 @@ REQUIRE kalki-widget.f
 REQUIRE kalki-basic.f
 REQUIRE kalki-window.f
 REQUIRE kalki-editor.f
+REQUIRE kalki-desktop.f
 
 \ ── Banner ───────────────────────────────────────────────────────────
 ." Kalki GUI Framework loaded." CR
-." Commands: KALKI-GFX-TEST  KALKI-COLOR-TEST" CR
+." Commands: KALKI                        \u2190 enter desktop" CR
+."           EDIT <filename>              \u2190 standalone editor" CR
+."           KALKI-GFX-TEST  KALKI-COLOR-TEST" CR
 ."           KALKI-WIDGET-TEST  KALKI-BASIC-TEST" CR
 ."           KALKI-WINDOW-TEST  KALKI-EDITOR-TEST" CR
-."           EDIT <filename>" CR
+."           KALKI-DESKTOP-TEST" CR

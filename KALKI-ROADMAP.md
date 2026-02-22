@@ -53,16 +53,17 @@ earlier ones but are scoped so work can pause at any phase boundary.
 
 - [x] 25 system color constants (CLR-BLACK through CLR-WARN, indices 0–24)
 - [x] `KALKI-PAL-INIT` — programs palette entries 0–24
-- [x] `GFX-PAL-DEFAULT` — programs entries 0–15 with default palette
-- [x] Entries 25–31 reserved, 32–255 free for apps
+- [x] Colors stored as VARIABLEs (CLR-TABLE), not constants — theme-switchable
 
 ### 1.2 — Theme Support
 
-- [x] `THEME-CLASSIC` / `THEME-DARK` / `THEME-OCEAN` — CREATE tables
-- [x] `THEME-LOAD ( theme-addr -- )` — loops #GUI-COLORS, calls FB-PAL!
+- [x] `THEME-CLASSIC` / `THEME-DARK` / `THEME-OCEAN` / `THEME-MODERN` — CREATE tables
+- [x] `THEME-LOAD ( theme-addr -- )` — converts 24-bit RGB → RGB565 CLR-TABLE
+- [x] `THEME-MODERN` — VS Code-inspired dark flat theme (default)
 - [x] `KALKI-COLOR-TEST` — visual test drawing color swatches for 2 themes
+- [x] Fixed `RGB24>565` — extracts top 5/6/5 bits (not bottom bits)
 
-**Deliverable:** `kalki-color.f` — 213 lines Forth (est. was 60).
+**Deliverable:** `kalki-color.f` — 241 lines Forth (est. was 60).
 
 ---
 
@@ -120,10 +121,9 @@ earlier ones but are scoped so work can pause at any phase boundary.
 ### 3.2 — Button
 
 - [x] `BUTTON ( x y w h label-addr label-len action-xt parent -- widget )`
-- [x] Render: 3D raised border + centered label
+- [x] Render: flat dark face + centered label (modern style)
 - [x] Key handler: Enter/Space → execute action-xt
-- [x] Visual feedback: focused buttons get inner outline
-- [x] 3D borders: `BEVEL-RAISED`, `BEVEL-SUNKEN`
+- [x] Visual feedback: focused buttons get accent-colored outline
 
 ### 3.3 — Panel
 
@@ -154,13 +154,12 @@ earlier ones but are scoped so work can pause at any phase boundary.
 ### 4.1 — Window Widget
 
 - [x] `WINDOW ( x y w h title-addr title-len parent -- widget )`
-- [x] Render: title bar (20px, CLR-TITLE-BG) + client area (CLR-WIN-BG)
-      + border (CLR-WIN-BORDER, 1px)
-- [x] Title text in CLR-TITLE-FG (vertically centered in title bar)
+- [x] Render: borderless flat window with accent-blue title bar (28px)
+- [x] Title text in CLR-TITLE-FG (vertically centered, left-padded 12px)
 - [x] Close button glyph (x) in title bar (decorative, shown when close-xt set)
 - [x] Active window: title bar in CLR-TITLE-BG; inactive: CLR-TITLE-INACTIVE
 - [x] `WIN-SET-CLOSE ( xt window -- )` — set close action
-- [x] `WIN-CLIENT-Y` (22), `WIN-CLIENT-X` (1) — child positioning constants
+- [x] `WIN-CLIENT-Y` (28), `WIN-CLIENT-X` (0) — child positioning constants
 
 ### 4.2 — Window Manager
 
@@ -249,51 +248,65 @@ earlier ones but are scoped so work can pause at any phase boundary.
 
 ---
 
-## Phase 7: Text Editor
+## Phase 7: Text Editor  ✅ COMPLETE
 
 **Goal:** A graphical text editor widget — the showcase feature.
 
 ### 7.1 — Gap Buffer
 
-- [ ] Gap buffer data structure: buf, gap_start, gap_end
-- [ ] `GAP-INSERT ( char ed -- )` — insert at cursor
-- [ ] `GAP-DELETE ( ed -- )` — backspace
-- [ ] `GAP-MOVE ( pos ed -- )` — move gap to position
-- [ ] `GAP-CHAR@ ( pos ed -- char )` — read logical position
+- [x] Gap buffer data structure: buf, gap_start, gap_end, dirty, cached line count
+- [x] `GAP-INSERT ( char gb -- )` — insert at cursor
+- [x] `GAP-DELETE ( gb -- )` — backspace
+- [x] `GAP-DELETE-FWD ( gb -- )` — delete forward
+- [x] `GAP-MOVE ( pos gb -- )` — move gap to position
+- [x] `GAP-CHAR@ ( pos gb -- char )` — read logical position
+- [x] `_GAP-GROW` — auto-double buffer when full
+- [x] Cached line count: O(1) `_GB-COUNT-LINES`
 
 ### 7.2 — Editor Widget
 
-- [ ] `EDITOR ( x y w h parent -- widget )`
-- [ ] Render: white background + text + cursor + line numbers
-- [ ] Cursor blink via timer toggle
-- [ ] Visible line range calculation from scroll offset
-- [ ] Horizontal scroll (or line wrapping — pick one)
+- [x] `EDITOR ( x y w h parent -- widget )`
+- [x] Render: dark background + light text + cursor + dim line numbers
+- [x] Cursor: 2px-wide bright blue bar, full LINE-H height
+- [x] `_BUILD-LINE-STARTS` — O(N) single-pass line-start table + cursor tracking
+- [x] `_LST-GET` — O(1) table lookup per visible line
+- [x] LINE-H=11 line spacing (3px interline leading)
+- [x] Accent-colored status bar (SBAR-H=16) with filename, L#:C#, [modified]
+- [x] Seamless gutter (same bg as editor)
 
 ### 7.3 — Editor Key Handling
 
-- [ ] Printable chars → insert
-- [ ] Backspace / Delete → delete
-- [ ] Arrow keys → move cursor
-- [ ] Home / End → start/end of line
-- [ ] Page Up / Down → scroll
-- [ ] Ctrl-S → save to MP64FS file
-- [ ] Ctrl-Z → undo (if undo buffer implemented)
+- [x] Printable chars → insert
+- [x] Backspace / Delete → delete
+- [x] Arrow keys → move cursor
+- [x] Home / End → start/end of line
+- [x] Page Up / Down → scroll
+- [x] Ctrl-S → save to MP64FS file
+- [x] EKEY: VT100 escape sequence decoder for arrow/nav keys
 
 ### 7.4 — File Integration
 
-- [ ] `EDIT ( "filename" -- )` — open file in editor widget
-- [ ] Load file content into gap buffer
-- [ ] Save gap buffer content back to file
-- [ ] New file creation
+- [x] `EDIT ( "filename" -- )` — open file in editor window
+- [x] Load file content into gap buffer
+- [x] Save gap buffer content back to file
+- [x] New file creation
 
-### 7.5 — Testing
+### 7.5 — Performance Optimization
 
-- [ ] Test gap buffer: insert, delete, move, boundary conditions
-- [ ] Test cursor movement: arrow keys, home/end
-- [ ] Test rendering: correct text at correct positions
-- [ ] Test file round-trip: load → edit → save → reload matches
+- [x] `FB-COPY-BACK` — partial redraws (only editor widget dirty per keystroke)
+- [x] Line-start table eliminates O(N²) scanning
+- [x] Cursor line/col piggybacked into same O(N) pass
+- [x] Window client-area fill removed (children paint own bg)
 
-**Deliverable:** `kalki-editor.f` module (~400 lines).
+### 7.6 — Testing
+
+- [x] Test gap buffer: insert, delete, move, boundary conditions
+- [x] Test cursor movement: arrow keys, home/end
+- [x] Test rendering: correct text at correct positions
+- [x] Test file round-trip: load → edit → save → reload matches
+- [x] Headless via `./boot.sh --test`
+
+**Deliverable:** `kalki-editor.f` — 953 lines Forth (est. was 400).
 
 ---
 
@@ -310,7 +323,7 @@ earlier ones but are scoped so work can pause at any phase boundary.
 
 ### 8.2 — Taskbar
 
-- [ ] Fixed 20px bar at bottom of screen
+- [ ] Fixed 24px bar at bottom of screen
 - [ ] Window list: one button per open window
 - [ ] Click (Enter on focused button) switches to that window
 - [ ] Clock widget at right edge (reads RTC)
@@ -406,14 +419,14 @@ earlier ones but are scoped so work can pause at any phase boundary.
 
 | Module | File | Est. Lines |
 |---|---|---|
-| Phase 0: GFX fixes | `kalki-gfx.f` | ~~150~~ 314 ✅ |
-| Phase 1: Colors | `kalki-color.f` | ~~60~~ 213 ✅ |
+| Phase 0: GFX fixes | `kalki-gfx.f` | ~~150~~ 396 ✅ |
+| Phase 1: Colors | `kalki-color.f` | ~~60~~ 241 ✅ |
 | Phase 2: Widget core | `kalki-widget.f` | ~~200~~ 545 ✅ |
 | Phase 3: Basic widgets | `kalki-basic.f` | ~~250~~ 261 ✅ |
-| Phase 4: Windows | `kalki-window.f` | ~~300~~ 440 ✅ |
+| Phase 4: Windows | `kalki-window.f` | ~~300~~ 442 ✅ |
 | Phase 5: Menus | `kalki-menu.f` | 250 |
 | Phase 6: Scrolling | `kalki-scroll.f` | 200 |
-| Phase 7: Text editor | `kalki-editor.f` | 400 |
+| Phase 7: Text editor | `kalki-editor.f` | ~~400~~ 953 ✅ |
 | Phase 8: Desktop | `kalki-desktop.f` | 350 |
 | Phase 9: Fonts | `kalki-font.f` | 150 |
 | Main entry point | `kalki.f` | 50 |
@@ -484,7 +497,7 @@ graphics.f ──→ kalki-gfx.f ──→ kalki-color.f ──→ kalki-widget.
 | **M1: Primitives** ✅ | 0–1 | Fast rects, fills, clipping, palette — test card visible |
 | **M2: Widgets** ✅ | 2–3 | Labels, buttons, panels — simple interactive forms |
 | **M3: Windows** | 4–5 | Windowed apps with menus — functional desktop shell (4 ✅) |
-| **M4: Editor** | 6–7 | Scrollable text editor — the killer app |
+| **M4: Editor** ✅ | 6–7 | Scrollable text editor — the killer app (7 done, 6 skipped) |
 | **M5: Desktop** | 8–9 | Full desktop experience with taskbar, launcher, fonts |
 | **M6: Polish** | 10 | Animations, clipboard, undo, tabs |
 

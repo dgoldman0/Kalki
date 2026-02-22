@@ -18,7 +18,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 EMU_DIR="$SCRIPT_DIR/emu"
 DISK_IMG="$SCRIPT_DIR/kalki.img"
-SCALE=2
+SCALE=3
 
 # Parse flags
 TEST_MODE=""
@@ -71,6 +71,9 @@ fs.inject_file('kalki-window.f',
 fs.inject_file('kalki-editor.f',
                Path('$SCRIPT_DIR/kalki-editor.f').read_bytes(),
                ftype=FTYPE_FORTH)
+fs.inject_file('kalki-desktop.f',
+               Path('$SCRIPT_DIR/kalki-desktop.f').read_bytes(),
+               ftype=FTYPE_FORTH)
 
 # Autoexec (loads Kalki modules on boot)
 fs.inject_file('autoexec.f',
@@ -78,7 +81,7 @@ fs.inject_file('autoexec.f',
                ftype=FTYPE_FORTH)
 
 fs.save('$DISK_IMG')
-print(f'Kalki disk: 10 files')
+print(f'Kalki disk: 11 files')
 "
 
 echo "=== Disk contents ==="
@@ -124,7 +127,7 @@ def run_until_idle(max_steps=2_000_000_000):
     return total
 
 run_until_idle()
-for cmd in ['KALKI-GFX-TEST', 'KALKI-COLOR-TEST', 'KALKI-WIDGET-TEST', 'KALKI-BASIC-TEST', 'KALKI-WINDOW-TEST', 'KALKI-EDITOR-TEST']:
+for cmd in ['KALKI-GFX-TEST', 'KALKI-COLOR-TEST', 'KALKI-WIDGET-TEST', 'KALKI-BASIC-TEST', 'KALKI-WINDOW-TEST', 'KALKI-EDITOR-TEST', 'KALKI-DESKTOP-TEST']:
     sys_emu.uart.inject_input((cmd + '\n').encode())
     run_until_idle(500_000_000)
 

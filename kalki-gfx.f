@@ -132,6 +132,7 @@ VARIABLE _FC-ADDR
 \   Shadows the slow generic GFX-TYPE from graphics.f.
 : GFX-TYPE  ( addr len color -- )
     _FC-CLR !                          ( addr len )
+    DUP 0= IF 2DROP EXIT THEN
     0 DO                               ( addr )
         DUP I + C@                     ( addr char )
         GFX-CX @ GFX-CY @             ( addr char cx cy )
