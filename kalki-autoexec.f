@@ -34,9 +34,11 @@ REQUIRE kalki-color.f
 REQUIRE kalki-widget.f
 REQUIRE kalki-basic.f
 REQUIRE kalki-window.f
+REQUIRE kalki-editor.f
 
 \ ── Banner ───────────────────────────────────────────────────────────
 ." Kalki GUI Framework loaded." CR
 ." Commands: KALKI-GFX-TEST  KALKI-COLOR-TEST" CR
 ."           KALKI-WIDGET-TEST  KALKI-BASIC-TEST" CR
-."           KALKI-WINDOW-TEST" CR
+."           KALKI-WINDOW-TEST  KALKI-EDITOR-TEST" CR
+."           EDIT <filename>" CR
