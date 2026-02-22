@@ -93,8 +93,8 @@ VARIABLE _F-XT    VARIABLE _F-PAR
     _F-PAR ! _F-TL ! _F-TA ! _F-Y ! _F-X !
     WGT-LABEL WG-ALLOC
     DUP 0= IF EXIT THEN
-    \ Set rect: width = len*8, height = 8
-    _F-X @ _F-Y @ _F-TL @ 8 * 8 WG-SET-RECT
+    \ Set rect: width = len * FONT-W, height = FONT-H
+    _F-X @ _F-Y @ _F-TL @ TEXT-WIDTH FONT-H WG-SET-RECT
     \ Alloc data
     /LABEL-DATA ALLOCATE IF DROP 0 EXIT THEN
     _F-TA @ OVER WD.TEXT !
@@ -117,10 +117,10 @@ VARIABLE _F-XT    VARIABLE _F-PAR
     BEVEL-RAISED
     \ Center text
     RD-WG @ WG.DATA @
-    DUP WD.TLEN @ 8 *          ( data text-px-width )
+    DUP WD.TLEN @ TEXT-WIDTH    ( data text-px-width )
     RD-W @ SWAP - 2 /          ( data offset-x )
     RD-AX @ + GFX-CX !         ( data )
-    RD-H @ 8 - 2 / RD-AY @ + GFX-CY !
+    RD-H @ FONT-H - 2 / RD-AY @ + GFX-CY !
     DUP WD.TEXT @ SWAP WD.TLEN @
     CLR-TEXT GFX-TYPE
     \ Focus indicator: inner outline 2px inset
@@ -173,7 +173,7 @@ VARIABLE _F-XT    VARIABLE _F-PAR
     \ Title text (if any)
     RD-WG @ WG.DATA @ DUP IF
         DUP WD.TLEN @ 0> IF
-            RD-AX @ 8 + GFX-CX !
+            RD-AX @ FONT-W + GFX-CX !
             RD-AY @ 2 + GFX-CY !
             DUP WD.TEXT @ SWAP WD.TLEN @
             CLR-TEXT GFX-TYPE
@@ -213,13 +213,12 @@ VARIABLE _F-XT    VARIABLE _F-PAR
     _F-PAR @ OVER SWAP WG-ADD-CHILD ;
 
 \ =====================================================================
-\  Section 8: Cleanup Helper
+\  Section 8: Cleanup
 \ =====================================================================
-\  Free a widget and its data block (if any).
+\  WG-DESTROY  ( widget -- ) — full teardown (dtor + data + struct)
+\  WG-FREE-SUBTREE ( widget -- ) — post-order recursive destroy
 
-: WG-FREE-DATA  ( widget -- )
-    DUP WG.DATA @ DUP IF FREE THEN DROP
-    WG-FREE ;
+: WG-FREE-DATA  ( widget -- )  WG-DESTROY ;  \ backward compat
 
 \ =====================================================================
 \  Section 9: Smoke Test
@@ -238,31 +237,21 @@ VARIABLE _BT-BTN
     KALKI-PAL-INIT
     0 FOCUS-WIDGET !
     0 _BT-COUNT !
-    \ Desktop background
     CLR-DESKTOP 0 0 640 480 FAST-RECT
-    \ Root widget
     WGT-ROOT WG-ALLOC DUP _BT-ROOT !
     0 0 640 480 WG-SET-RECT DROP
-    \ Panel with title
     20 20 300 200 S" Test Panel" _BT-ROOT @ PANEL
     _BT-PANEL !
-    \ Label inside panel
     10 16 S" Hello from Kalki!" _BT-PANEL @ LABEL DROP
-    \ Button
     10 40 120 24 S" Click Me" ['] _BT-ACTION _BT-PANEL @ BUTTON
     _BT-BTN !
-    \ Separator
     10 76 280 _BT-PANEL @ HSEP DROP
-    \ Second label
     10 86 S" After separator" _BT-PANEL @ LABEL DROP
-    \ Empty panel
     20 240 300 80 S" " _BT-ROOT @ PANEL DROP
-    \ Focus + render
     _BT-BTN @ FOCUS
     _BT-ROOT @ MARK-ALL-DIRTY
     _BT-ROOT @ RENDER-TREE
     FB-SWAP
-    \ Key dispatch tests
     K-ENTER DELIVER-KEY DROP
     ." Click count: " _BT-COUNT @ . CR
     K-ENTER DELIVER-KEY DROP
