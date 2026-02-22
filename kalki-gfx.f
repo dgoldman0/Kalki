@@ -335,6 +335,13 @@ VARIABLE FB-BACK               \ address we draw to (= GFX-FB)
     FB-FRONT @ FB-BASE!
     FB-BACK @ GFX-FB ! ;
 
+\ FB-COPY-BACK ( -- )
+\   Copy front buffer content to back buffer.  Call after FB-SWAP
+\   so the back buffer starts with a complete scene.  This lets you
+\   do incremental (partial) redraws instead of repainting everything.
+: FB-COPY-BACK
+    FB-FRONT @ FB-BACK @ GFX-STR @ GFX-H @ * CMOVE ;
+
 \ =====================================================================
 \  Section 6: Kalki GFX Initialization
 \ =====================================================================

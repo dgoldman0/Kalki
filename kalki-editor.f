@@ -759,12 +759,11 @@ VARIABLE _EDIT-FNLEN
         \ Deliver to editor widget
         DUP _EDIT-WG @ EDITOR-KEY IF
             DROP
-            \ Re-render — must MARK-ALL-DIRTY because double-buffered
-            \ FB-SWAP alternates buffers; partial repaint would leave
-            \ stale content in the alternate buffer.
-            _EDIT-ROOT @ MARK-ALL-DIRTY
+            \ Re-render — copy front→back so we only repaint what changed
+            _EDIT-WG @ WG-DIRTY
             _EDIT-ROOT @ RENDER-TREE
             FB-SWAP
+            FB-COPY-BACK
         ELSE
             DROP
         THEN
