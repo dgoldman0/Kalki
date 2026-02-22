@@ -344,7 +344,7 @@ VARIABLE _FMK-KEY
                 THEN
             THEN
         THEN
-        DK-RUNNING @
+        DK-RUNNING @ 0=
     UNTIL ;
 
 \ =====================================================================
