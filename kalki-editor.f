@@ -44,8 +44,8 @@ VARIABLE _NP
     _NP @                        ( addr )
     _NUMBUF 12 + OVER - ;       ( addr len )
 
-\ Scratch byte for single-char GFX-TYPE rendering
-VARIABLE _RCHAR
+\ Line rendering buffer — holds one extracted line for batch GFX-TYPE
+CREATE _LINE-BUF 256 ALLOT
 
 \ =====================================================================
 \  Section 1: Extended Key Reader (EKEY)
@@ -101,20 +101,22 @@ VARIABLE _RCHAR
 \  Section 2: Gap Buffer
 \ =====================================================================
 \  Contiguous memory block with a gap at the cursor position.
-\  The gap buffer struct is a 5-cell block (40 bytes):
+\  The gap buffer struct is a 6-cell block (48 bytes):
 \    +0  buf     — base address of allocated buffer
 \    +8  size    — total allocated size
 \    +16 gs      — gap start (= cursor position in buffer)
 \    +24 ge      — gap end
 \    +32 dirty   — modified since last save
+\    +40 lines   — cached line count (always >= 1)
 
 : GB.BUF     ;                   \ +0
 : GB.SIZE   8 + ;               \ +8
 : GB.GS    16 + ;               \ +16  gap start
 : GB.GE    24 + ;               \ +24  gap end
 : GB.DIRTY 32 + ;               \ +32  dirty flag
+: GB.LINES 40 + ;               \ +40  cached line count
 
-40 CONSTANT /GAP-BUF            \ struct size
+48 CONSTANT /GAP-BUF            \ struct size
 
 4096 CONSTANT GAP-INIT-SIZE     \ initial buffer size
 
@@ -135,7 +137,8 @@ VARIABLE _RCHAR
     GAP-INIT-SIZE OVER GB.SIZE !
     0 OVER GB.GS !
     GAP-INIT-SIZE OVER GB.GE !
-    0 OVER GB.DIRTY ! ;
+    0 OVER GB.DIRTY !
+    1 OVER GB.LINES ! ;
 
 \ GAP-FREE ( gb -- )
 \   Free buffer and struct.
@@ -223,6 +226,7 @@ VARIABLE _GM-GS  VARIABLE _GM-CNT
 \   Insert a character at the gap position.
 : GAP-INSERT  ( char gb -- )
     DUP 1 _GAP-ENSURE
+    OVER 10 = IF DUP GB.LINES @ 1+ OVER GB.LINES ! THEN
     DUP GB.BUF @ OVER GB.GS @ + ROT SWAP C!
     DUP GB.GS @ 1+ OVER GB.GS !
     1 SWAP GB.DIRTY ! ;
@@ -231,6 +235,10 @@ VARIABLE _GM-GS  VARIABLE _GM-CNT
 \   Delete character before gap (backspace).  No-op if at start.
 : GAP-DELETE  ( gb -- )
     DUP GB.GS @ 0= IF DROP EXIT THEN
+    \ Check if deleted char is LF — update cached line count
+    DUP GB.BUF @ OVER GB.GS @ 1- + C@ 10 = IF
+        DUP GB.LINES @ 1- 1 MAX OVER GB.LINES !
+    THEN
     DUP GB.GS @ 1- OVER GB.GS !
     1 SWAP GB.DIRTY ! ;
 
@@ -238,6 +246,10 @@ VARIABLE _GM-GS  VARIABLE _GM-CNT
 \   Delete character after gap (Delete key).  No-op if at end.
 : GAP-DELETE-FWD  ( gb -- )
     DUP GB.GE @ OVER GB.SIZE @ >= IF DROP EXIT THEN
+    \ Check if deleted char is LF — update cached line count
+    DUP GB.BUF @ OVER GB.GE @ + C@ 10 = IF
+        DUP GB.LINES @ 1- 1 MAX OVER GB.LINES !
+    THEN
     DUP GB.GE @ 1+ OVER GB.GE !
     1 SWAP GB.DIRTY ! ;
 
@@ -284,13 +296,9 @@ VARIABLE _GLS-GB
     LOOP ;                       ( pos — start of line N )
 
 \ _GB-COUNT-LINES ( gb -- n )
-\   Count total lines (= number of LFs + 1, unless empty).
+\   Return cached line count.  O(1).
 : _GB-COUNT-LINES  ( gb -- n )
-    DUP GAP-LENGTH 0= IF DROP 1 EXIT THEN
-    1 SWAP                       ( count gb )
-    DUP GAP-LENGTH 0 DO         ( count gb )
-        I OVER GAP-CHAR@ 10 = IF SWAP 1+ SWAP THEN
-    LOOP DROP ;
+    GB.LINES @ ;
 
 \ _GB-POS-TO-LINE ( pos gb -- line# col# )
 \   Convert a logical position to line/column.
@@ -379,7 +387,9 @@ VARIABLE _ER-CURLINE  VARIABLE _ER-CURCOL
 \ _ED-RENDER-LINE ( screen-line line# -- )
 \   Render one line of text at y = screen-line * FONT-H + editor-abs-y.
 \   line# is 0-based absolute line number.
+\   Extracts the line into _LINE-BUF for a single GFX-TYPE call.
 VARIABLE _ERL-X  VARIABLE _ERL-Y  VARIABLE _ERL-LN  VARIABLE _ERL-POS
+VARIABLE _ERL-CNT
 : _ED-RENDER-LINE  ( screen-line line# -- )
     _ERL-LN !                    ( screen-line )
     FONT-H * _ER-AY @ +         ( y-pixel )
@@ -391,16 +401,21 @@ VARIABLE _ERL-X  VARIABLE _ERL-Y  VARIABLE _ERL-LN  VARIABLE _ERL-POS
     _ERL-LN @ 1+ _ED-RENDER-LINENUM
     \ Set text cursor after gutter
     _ERL-X @ GUTTER-PX + GFX-CX !
-    \ Render text content
+    \ Extract up to VCOLS chars into _LINE-BUF
     _ERL-LN @ _ER-GB @ _GB-LINE-START _ERL-POS !
+    0 _ERL-CNT !
     _ER-ED @ ED.VCOLS @ 0 DO
         _ERL-POS @ _ER-GB @ GAP-LENGTH >= IF LEAVE THEN
         _ERL-POS @ _ER-GB @ GAP-CHAR@     ( char )
         DUP 10 = IF DROP LEAVE THEN
-        _RCHAR C!
-        _RCHAR 1 CLR-EDIT-FG GFX-TYPE
+        _LINE-BUF _ERL-CNT @ + C!
+        _ERL-CNT @ 1+ _ERL-CNT !
         _ERL-POS @ 1+ _ERL-POS !
-    LOOP ;
+    LOOP
+    \ Batch render the whole line in one GFX-TYPE call
+    _ERL-CNT @ 0> IF
+        _LINE-BUF _ERL-CNT @ CLR-EDIT-FG GFX-TYPE
+    THEN ;
 
 : EDITOR-RENDER  ( widget -- )
     _ED-SETUP
@@ -435,11 +450,13 @@ VARIABLE _ERL-X  VARIABLE _ERL-Y  VARIABLE _ERL-LN  VARIABLE _ERL-POS
         _ER-ED @ ED.SCROLL !
     THEN
     \ Render visible lines
+    \ _GB-COUNT-LINES is now O(1) via cached GB.LINES
+    _ER-GB @ _GB-COUNT-LINES     ( total-lines )
     _ER-ED @ ED.VLINES @ 0 DO
         I _ER-ED @ ED.SCROLL @ +
-        DUP _ER-GB @ _GB-COUNT-LINES >= IF DROP LEAVE THEN
+        DUP OVER >= IF DROP LEAVE THEN
         I SWAP _ED-RENDER-LINE
-    LOOP
+    LOOP DROP
     \ Draw cursor (thin 2px bar)
     _ER-CURLINE @ _ER-ED @ ED.SCROLL @ - DUP 0 >= IF
         DUP _ER-ED @ ED.VLINES @ < IF
@@ -732,8 +749,9 @@ VARIABLE _EDIT-FNLEN
         \ Deliver to editor widget
         DUP _EDIT-WG @ EDITOR-KEY IF
             DROP
-            \ Re-render
-            _EDIT-ROOT @ MARK-ALL-DIRTY
+            \ Re-render — editor widget is already marked dirty
+            \ by EDITOR-KEY; skip MARK-ALL-DIRTY so only the
+            \ editor repaints (window frame stays untouched).
             _EDIT-ROOT @ RENDER-TREE
             FB-SWAP
         ELSE
