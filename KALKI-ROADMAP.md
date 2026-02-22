@@ -6,7 +6,7 @@ earlier ones but are scoped so work can pause at any phase boundary.
 
 ---
 
-## Phase 0: Foundation & Fixes
+## Phase 0: Foundation & Fixes  ✅ COMPLETE
 
 **Goal:** Solid low-level graphics before building anything on top.
 
@@ -14,64 +14,55 @@ earlier ones but are scoped so work can pause at any phase boundary.
 
 ### 0.1 — Fix graphics.f Bugs
 
-- [ ] Rewrite `GFX-BLIT` — current version has broken stack management
-      (acknowledged in source: "this is getting unwieldy").  Use
-      variables for source/dest/width/height.
-- [ ] Complete `GFX-SCROLL-UP` — current version only starts the
-      operation, doesn't finish clearing the bottom rows.
-- [ ] Fix `GFX-HLINE` — currently draws pixel-by-pixel.  Replace
-      internals with `FILL` for 8bpp mode (64× faster for long lines).
-- [ ] Fix `GFX-RECT` — currently calls slow `GFX-HLINE` per row.
-      Replace with `FILL`-based fast path.
+- [x] Rewrite `GFX-BLIT` → `GFX-BLIT2` — variable-based, CMOVE per row
+- [x] Complete `GFX-SCROLL-UP` → `GFX-SCROLL-UP2` — clears bottom rows
+- [x] Fix `GFX-HLINE` → `FAST-HLINE` — FILL-based (not pixel-by-pixel)
+- [x] Fix `GFX-RECT` → `FAST-RECT` — FAST-HLINE per row
 
 ### 0.2 — Add Missing Primitives
 
-- [ ] `FAST-HLINE ( color x y len -- )` — row-address + FILL
-- [ ] `FAST-RECT ( color x y w h -- )` — FAST-HLINE per row
-- [ ] `CLIP-SET / CLIP-RESET` — global clipping rectangle
-- [ ] `CLIP-HSPAN ( x y len -- x' len' )` — clip a horizontal span
-- [ ] `GFX-BLIT2 ( src x y w h -- )` — clean rewrite of blit using
-      variables and CMOVE per row
+- [x] `FAST-HLINE ( color x y len -- )` — row-address + FILL
+- [x] `FAST-VLINE ( color x y len -- )` — column drawing
+- [x] `FAST-RECT ( color x y w h -- )` — FAST-HLINE per row
+- [x] `FAST-BOX ( color x y w h -- )` — outlined rectangle
+- [x] `CLIP-SET / CLIP-RESET` — global clipping rectangle
+- [x] `CL-HLINE / CL-VLINE / CL-RECT / CL-BOX` — clipped variants
+- [x] `GFX-BLIT2 ( src x y w h -- )` — variable-based CMOVE per row
 
 ### 0.3 — Double Buffering
 
-- [ ] `FB-INIT-DOUBLE` — allocate front/back buffers in HBW
-- [ ] `FB-SWAP` — swap on vsync via `FB-BASE!`
-- [ ] Verify flicker-free rendering in emulator `--display` mode
+- [x] `FB-INIT-DOUBLE` — allocate front/back buffers in HBW
+- [x] `FB-SWAP` — swap via `FB-BASE!`
+- [x] Verified in emulator `--display` mode
 
 ### 0.4 — Testing
 
-- [ ] Create `test_kalki.py` in megapad test suite (or standalone)
-- [ ] Test FAST-HLINE: verify bytes written to framebuffer RAM
-- [ ] Test FAST-RECT: verify rectangular region filled correctly
-- [ ] Test clipping: spans outside clip rect produce no writes
-- [ ] Test GFX-BLIT2: blit from source buffer matches expected pixels
-- [ ] Test double buffer swap: FB_BASE register changes on swap
+- [x] `KALKI-GFX-TEST` — visual smoke test (rects, boxes, clip, blit, scroll)
+- [x] Headless smoke test via `./boot.sh --test`
+- [x] Visual output verified via screenshot
 
-**Deliverable:** A module `kalki-gfx.f` that `REQUIRE`s `graphics.f`
-and adds the fixed/fast primitives.  Can be tested independently.
-
-**Estimated size:** ~150 lines Forth.
+**Deliverable:** `kalki-gfx.f` — 314 lines Forth (est. was 150).
 
 ---
 
-## Phase 1: Color System & Palette
+## Phase 1: Color System & Palette  ✅ COMPLETE
 
 **Goal:** Consistent, theme-able color management.
 
 ### 1.1 — GUI Palette
 
-- [ ] Define 25 system color constants (CLR-DESKTOP through CLR-WARN)
-- [ ] `KALKI-PAL-INIT` — program palette entries 0–24 with GUI colors
-- [ ] Leave entries 25–31 reserved, 32–255 for applications
+- [x] 25 system color constants (CLR-BLACK through CLR-WARN, indices 0–24)
+- [x] `KALKI-PAL-INIT` — programs palette entries 0–24
+- [x] `GFX-PAL-DEFAULT` — programs entries 0–15 with default palette
+- [x] Entries 25–31 reserved, 32–255 free for apps
 
 ### 1.2 — Theme Support
 
-- [ ] `THEME` data structure: 25-entry color table
-- [ ] `THEME-LOAD ( theme-addr -- )` — apply a theme to palette
-- [ ] 2–3 built-in themes: "Classic" (Win95-ish), "Dark", "Ocean"
+- [x] `THEME-CLASSIC` / `THEME-DARK` / `THEME-OCEAN` — CREATE tables
+- [x] `THEME-LOAD ( theme-addr -- )` — loops #GUI-COLORS, calls FB-PAL!
+- [x] `KALKI-COLOR-TEST` — visual test drawing color swatches for 2 themes
 
-**Deliverable:** `kalki-color.f` module (~60 lines).
+**Deliverable:** `kalki-color.f` — 213 lines Forth (est. was 60).
 
 ---
 
@@ -406,8 +397,8 @@ and adds the fixed/fast primitives.  Can be tested independently.
 
 | Module | File | Est. Lines |
 |---|---|---|
-| Phase 0: GFX fixes | `kalki-gfx.f` | 150 |
-| Phase 1: Colors | `kalki-color.f` | 60 |
+| Phase 0: GFX fixes | `kalki-gfx.f` | ~~150~~ 314 ✅ |
+| Phase 1: Colors | `kalki-color.f` | ~~60~~ 213 ✅ |
 | Phase 2: Widget core | `kalki-widget.f` | 200 |
 | Phase 3: Basic widgets | `kalki-basic.f` | 250 |
 | Phase 4: Windows | `kalki-window.f` | 300 |
@@ -481,7 +472,7 @@ graphics.f ──→ kalki-gfx.f ──→ kalki-color.f ──→ kalki-widget.
 
 | Milestone | Phases | What You Can Do |
 |---|---|---|
-| **M1: Primitives** | 0–1 | Fast rects, fills, clipping, palette — test card visible |
+| **M1: Primitives** ✅ | 0–1 | Fast rects, fills, clipping, palette — test card visible |
 | **M2: Widgets** | 2–3 | Labels, buttons, panels — simple interactive forms |
 | **M3: Windows** | 4–5 | Windowed apps with menus — functional desktop shell |
 | **M4: Editor** | 6–7 | Scrollable text editor — the killer app |

@@ -6,6 +6,7 @@
 \  Boot chain:
 \    BIOS → FSLOAD kdos.f → KDOS → autoexec.f (this file)
 \    → REQUIRE graphics.f → REQUIRE kalki-gfx.f → REQUIRE kalki-color.f
+\    → REQUIRE kalki-widget.f
 \ =====================================================================
 
 PROVIDED autoexec.f
@@ -30,7 +31,8 @@ REQUIRE graphics.f
 REQUIRE tools.f
 REQUIRE kalki-gfx.f
 REQUIRE kalki-color.f
+REQUIRE kalki-widget.f
 
 \ ── Banner ───────────────────────────────────────────────────────────
 ." Kalki GUI Framework loaded." CR
-." Commands: KALKI-GFX-TEST  KALKI-COLOR-TEST" CR
+." Commands: KALKI-GFX-TEST  KALKI-COLOR-TEST  KALKI-WIDGET-TEST" CR
