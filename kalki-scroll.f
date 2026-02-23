@@ -80,7 +80,8 @@ VARIABLE _SBC-VIS
 : SB-RENDER  ( widget -- )
     RD-SETUP
     RD-H @ _SB-TRACK-H !
-    RD-WG @ WG.DATA @ _SB-CALC
+    RD-WG @ WG.DATA @ DUP 0= IF DROP EXIT THEN
+    _SB-CALC
     \ Draw track
     CLR-SCROLL-BG RD-AX @ RD-AY @ RD-W @ RD-H @ FAST-RECT
     \ Draw thumb
@@ -202,14 +203,39 @@ VARIABLE _LBR-XT                \ render XT
         RD-AY @ I LINE-H * + 2 + ( idx x y )
         _LBR-ITRW @ 8 -          ( idx x y w )
         3 PICK _LBR-SEL @ =      ( idx x y w sel? )
-        _LBR-XT @ EXECUTE
+        _LBR-XT @ ?DUP IF EXECUTE ELSE 2DROP 2DROP DROP THEN
     LOOP ;
 
 \ =====================================================================
-\  Section 7: Listbox Key Handling
+\  Section 7: Listbox Scrollbar Sync
+\ =====================================================================
+
+VARIABLE _LBS-SB                 \ scrollbar child widget
+
+\ _LB-SYNC-SB ( listbox -- )
+\   Update the scrollbar child to reflect current listbox state.
+: _LB-SYNC-SB  ( listbox -- )
+    DUP WG.CHILD1 @             ( lb child )
+    DUP 0= IF 2DROP EXIT THEN
+    DUP WG.TYPE @ WGT-SCROLLBAR <> IF 2DROP EXIT THEN
+    _LBS-SB !                    ( lb )
+    WG.DATA @ DUP 0= IF DROP EXIT THEN   ( data )
+    DUP LB.COUNT @              ( data count )
+    OVER LB.VIS @               ( data count vis )
+    ROT LB.SCROLL @             ( count vis scroll )
+    _LBS-SB @ SB-UPDATE ;
+
+\ =====================================================================
+\  Section 8: Listbox Key Handling
 \ =====================================================================
 
 VARIABLE _LBK-DATA
+VARIABLE _LBK-WG                \ widget pointer during key handling
+
+\ _LBK-DONE ( -- -1 )
+\   Mark listbox dirty, sync scrollbar, push -1 (consumed flag).
+: _LBK-DONE  ( -- -1 )
+    _LBK-WG @ DUP _LB-SYNC-SB WG-DIRTY -1 ;
 
 \ _LB-ENSURE-VISIBLE ( lb-data -- )
 \   Adjust scroll so that selected item is visible.
@@ -228,6 +254,7 @@ VARIABLE _LBK-DATA
     THEN DROP ;
 
 : LB-KEY  ( key widget -- consumed? )
+    DUP _LBK-WG !
     WG.DATA @ DUP 0= IF DROP DROP 0 EXIT THEN
     _LBK-DATA !
     \ Up arrow
@@ -236,16 +263,16 @@ VARIABLE _LBK-DATA
         _LBK-DATA @ LB.SELECTED @ 1- 0 MAX
         _LBK-DATA @ LB.SELECTED !
         _LBK-DATA @ _LB-ENSURE-VISIBLE
-        -1 EXIT
+        _LBK-DONE EXIT
     THEN
     \ Down arrow
     DUP K-DOWN = IF
         DROP
         _LBK-DATA @ LB.SELECTED @ 1+
-        _LBK-DATA @ LB.COUNT @ 1- MIN
+        _LBK-DATA @ LB.COUNT @ 1- 0 MAX MIN
         _LBK-DATA @ LB.SELECTED !
         _LBK-DATA @ _LB-ENSURE-VISIBLE
-        -1 EXIT
+        _LBK-DONE EXIT
     THEN
     \ Page Up
     DUP K-PGUP = IF
@@ -254,32 +281,32 @@ VARIABLE _LBK-DATA
         _LBK-DATA @ LB.VIS @ - 0 MAX
         _LBK-DATA @ LB.SELECTED !
         _LBK-DATA @ _LB-ENSURE-VISIBLE
-        -1 EXIT
+        _LBK-DONE EXIT
     THEN
     \ Page Down
     DUP K-PGDN = IF
         DROP
         _LBK-DATA @ LB.SELECTED @
         _LBK-DATA @ LB.VIS @ +
-        _LBK-DATA @ LB.COUNT @ 1- MIN
+        _LBK-DATA @ LB.COUNT @ 1- 0 MAX MIN
         _LBK-DATA @ LB.SELECTED !
         _LBK-DATA @ _LB-ENSURE-VISIBLE
-        -1 EXIT
+        _LBK-DONE EXIT
     THEN
     \ Home
     DUP K-HOME = IF
         DROP
         0 _LBK-DATA @ LB.SELECTED !
         _LBK-DATA @ _LB-ENSURE-VISIBLE
-        -1 EXIT
+        _LBK-DONE EXIT
     THEN
     \ End
     DUP K-END = IF
         DROP
-        _LBK-DATA @ LB.COUNT @ 1-
+        _LBK-DATA @ LB.COUNT @ 1- 0 MAX
         _LBK-DATA @ LB.SELECTED !
         _LBK-DATA @ _LB-ENSURE-VISIBLE
-        -1 EXIT
+        _LBK-DONE EXIT
     THEN
     \ Enter — trigger action
     DUP K-ENTER = IF
@@ -287,28 +314,9 @@ VARIABLE _LBK-DATA
         _LBK-DATA @ LB.ACTION @ ?DUP IF
             _LBK-DATA @ LB.SELECTED @ SWAP EXECUTE
         THEN
-        -1 EXIT
+        _LBK-DONE EXIT
     THEN
     DROP 0 ;
-
-\ =====================================================================
-\  Section 8: Listbox Scrollbar Sync
-\ =====================================================================
-
-VARIABLE _LBS-SB                 \ scrollbar child widget
-
-\ _LB-SYNC-SB ( listbox -- )
-\   Update the scrollbar child to reflect current listbox state.
-: _LB-SYNC-SB  ( listbox -- )
-    DUP WG.CHILD1 @             ( lb child )
-    DUP 0= IF 2DROP EXIT THEN
-    DUP WG.TYPE @ WGT-SCROLLBAR <> IF 2DROP EXIT THEN
-    _LBS-SB !                    ( lb )
-    WG.DATA @ DUP 0= IF DROP EXIT THEN   ( data )
-    DUP LB.COUNT @              ( data count )
-    OVER LB.VIS @               ( data count vis )
-    ROT LB.SCROLL @             ( count vis scroll )
-    _LBS-SB @ SB-UPDATE ;
 
 \ =====================================================================
 \  Section 9: Listbox Factory
