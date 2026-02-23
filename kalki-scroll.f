@@ -1,15 +1,18 @@
 \ kalki-scroll.f — Phase 6: Scrollable Containers
 \ =====================================================================
-\  Scrollbar, scroll view, and listbox widgets.
+\  Scrollbar and listbox widgets.
 \
 \  Provides:
 \    SCROLLBAR  ( x y w h parent -- widget )    vertical scrollbar
+\    SB-UPDATE  ( total vis pos sb -- )         update scrollbar state
 \    LISTBOX    ( x y w h parent -- widget )     scrollable list
 \    LB-SET-ITEMS    ( count widget -- )         set item count
 \    LB-SET-RENDER   ( xt widget -- )            set item render callback
 \    LB-SET-ACTION   ( xt widget -- )            set Enter action
 \    LB-SELECTED     ( widget -- idx )           get selected index
 \    LB-SCROLL       ( widget -- scroll )        get scroll offset
+\
+\  Item render XT signature: ( index x y w selected? -- )
 \
 \  Depends on: kalki-basic.f (RD-SETUP, _F-* factory vars)
 \              kalki-widget.f (widget core)
