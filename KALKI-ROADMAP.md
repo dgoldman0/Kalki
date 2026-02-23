@@ -190,32 +190,46 @@ earlier ones but are scoped so work can pause at any phase boundary.
 
 ---
 
-## Phase 5: Menu System
+## Phase 5: Menu System  ✅ COMPLETE
 
 **Goal:** Menu bars and dropdown menus.
 
 ### 5.1 — Menu Items
 
-- [ ] Menu item struct: label + action-xt + enabled flag
-- [ ] `MENU ( nitems parent -- widget )`
-- [ ] `MENU-ADD ( label-addr label-len xt menu -- )`
-- [ ] Render: vertical list with selection highlight
-- [ ] Key handler: Up/Down to navigate, Enter to select, Esc to close
+- [x] Menu item struct: label + action-xt + separator flag (MI-SIZE=32)
+- [x] `MENU-CREATE ( max-items -- menu | 0 )`
+- [x] `MENU-ADD ( label-addr label-len xt menu -- )`
+- [x] `MENU-ADD-SEP ( menu -- )` — separator lines
+- [x] `MENU-FREE ( menu -- )`
 
-### 5.2 — Menu Bar
+### 5.2 — Dropdown Menu
 
-- [ ] `MENU-BAR ( window -- widget )` — horizontal bar at top of window
-- [ ] Contains named menu triggers ("File", "Edit", "View")
-- [ ] Left/Right arrow switches between menus
-- [ ] Enter/Down opens dropdown
+- [x] Render: vertical list with CLR-MENU-BG/CLR-MENU-SEL highlight
+- [x] Key handler: Up/Down navigate, Enter selects, Esc closes
+- [x] Left/Right switches between menu bar triggers
+- [x] Separator items skip during navigation
+- [x] Modal overlay with full scene repaint
+- [x] Screen edge clamping
+
+### 5.3 — Menu Bar
+
+- [x] `MENU-BAR ( parent -- widget )` — horizontal bar at top of window
+- [x] `MBAR-ADD ( label-addr label-len menu bar -- )` — add trigger
+- [x] Contains named menu triggers ("File", etc.)
+- [x] Left/Right arrow switches between triggers
+- [x] Enter/Down opens dropdown
+- [x] Tab/Esc returns focus to editor
 - [ ] Keyboard accelerators (Alt+letter, future)
+- [ ] Context menu support (future)
 
-### 5.3 — Context Menu
+### 5.4 — Desktop Integration
 
-- [ ] `CONTEXT-MENU ( x y nitems -- widget )` — popup at cursor position
-- [ ] Auto-dismiss on selection or Escape
+- [x] Editor window has File menu bar (Save, Close)
+- [x] Tab key switches focus between menu bar and editor
+- [x] Esc from menu bar returns to editor
+- [x] Menu actions execute after dropdown closes
 
-**Deliverable:** `kalki-menu.f` module (~250 lines).
+**Deliverable:** `kalki-menu.f` — 410 lines Forth (est. was 250).
 
 ---
 

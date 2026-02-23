@@ -14,6 +14,7 @@
 
 PROVIDED kalki-desktop.f
 REQUIRE kalki-editor.f
+REQUIRE kalki-menu.f
 
 \ =====================================================================
 \  Section 1: Constants & Layout
@@ -134,11 +135,42 @@ VARIABLE FM-SELECTED             \ currently selected file index
 \  Section 6: Editor Integration  (must be defined before _FM-LIST-KEY)
 \ =====================================================================
 \  Opens an editor window inside the desktop (not standalone EDIT).
+\  Includes a menu bar with File → Save / Close.
 
 VARIABLE _DKE-WIN               \ editor window inside desktop
 VARIABLE _DKE-WG                \ editor widget inside that window
+VARIABLE _DKE-MBAR              \ menu bar widget (0 if none)
 CREATE _DKE-FNAME 24 ALLOT      \ filename for desktop editor
 VARIABLE _DKE-FNLEN
+
+\ _DK-CLOSE-EDITOR ( -- )
+\   Close the editor window and return to file manager.
+\   Must be defined before _DK-OPEN-FILE (used by menu action XT).
+: _DK-CLOSE-EDITOR  ( -- )
+    _DKE-WIN @ DUP 0= IF DROP EXIT THEN
+    DUP WIN-UNREGISTER
+    WG-FREE-SUBTREE
+    0 _DKE-WIN !
+    0 _DKE-WG !
+    0 _DKE-MBAR !
+    \ Show file manager again
+    DK-FILE-WIN @ WGF-VISIBLE WG-SET-FLAG
+    DK-FILE-LIST @ FOCUS
+    DK-ROOT @ MARK-ALL-DIRTY ;
+
+\ ── Menu action words ──
+
+: _DKE-DO-SAVE  ( -- )
+    _DKE-WG @ IF
+        19 _DKE-WG @ EDITOR-KEY DROP
+        _DKE-WG @ WG-DIRTY
+    THEN ;
+
+: _DKE-DO-CLOSE  ( -- )
+    _DK-CLOSE-EDITOR ;
+
+\ ── Transient variable for menu creation ──
+VARIABLE _DKE-FMENU
 
 \ _DK-OPEN-FILE ( fm-idx -- )
 \   Open selected file in an editor window on the desktop.
@@ -155,10 +187,18 @@ VARIABLE _DKE-FNLEN
     _DKE-FNAME _DKE-FNLEN @
     DK-ROOT @ WINDOW
     _DKE-WIN !
-    \ Editor widget fills client area
-    WIN-CLIENT-X WIN-CLIENT-Y
+    \ ── Menu bar at top of client area ──
+    _DKE-WIN @ MENU-BAR _DKE-MBAR !
+    \ File menu: Save, separator, Close
+    3 MENU-CREATE _DKE-FMENU !
+    S" Save"  ['] _DKE-DO-SAVE  _DKE-FMENU @ MENU-ADD
+    _DKE-FMENU @ MENU-ADD-SEP
+    S" Close" ['] _DKE-DO-CLOSE _DKE-FMENU @ MENU-ADD
+    S" File" _DKE-FMENU @ _DKE-MBAR @ MBAR-ADD
+    \ ── Editor widget fills client area below menu bar ──
+    WIN-CLIENT-X WIN-CLIENT-Y MBAR-H +
     800 WIN-CLIENT-X 2* -
-    WORKSPACE-H WIN-CLIENT-Y -
+    WORKSPACE-H WIN-CLIENT-Y - MBAR-H -
     _DKE-WIN @ EDITOR
     _DKE-WG !
     \ Set filename and load
@@ -166,19 +206,6 @@ VARIABLE _DKE-FNLEN
     _DKE-WG @ _ED-LOAD-FILE
     _DKE-WG @ FOCUS
     \ Full repaint
-    DK-ROOT @ MARK-ALL-DIRTY ;
-
-\ _DK-CLOSE-EDITOR ( -- )
-\   Close the editor window and return to file manager.
-: _DK-CLOSE-EDITOR  ( -- )
-    _DKE-WIN @ DUP 0= IF DROP EXIT THEN
-    DUP WIN-UNREGISTER
-    WG-FREE-SUBTREE
-    0 _DKE-WIN !
-    0 _DKE-WG !
-    \ Show file manager again
-    DK-FILE-WIN @ WGF-VISIBLE WG-SET-FLAG
-    DK-FILE-LIST @ FOCUS
     DK-ROOT @ MARK-ALL-DIRTY ;
 
 \ =====================================================================
@@ -256,7 +283,7 @@ VARIABLE _FMK-KEY
     \ Reset window manager
     0 WIN-COUNT !  -1 WIN-ACTIVE !
     0 FOCUS-WIDGET !
-    0 _DKE-WIN !  0 _DKE-WG !
+    0 _DKE-WIN !  0 _DKE-WG !  0 _DKE-MBAR !
     \ Root widget
     WGT-ROOT WG-ALLOC DUP DK-ROOT !
     0 0 800 600 WG-SET-RECT DROP
@@ -326,18 +353,52 @@ VARIABLE _FMK-KEY
                 \ Ctrl-S in editor → save, don't exit
                 _DKE-WG @ IF
                     DROP
-                    _DKE-WG @ EDITOR-KEY DROP
+                    19 _DKE-WG @ EDITOR-KEY DROP
+                    _DKE-WG @ WG-DIRTY
                 ELSE
                     _DK-HANDLE-KEY
                 THEN
             ELSE
-                \ Handle editor keys when editor is open
+                \ Handle keys when editor is open
                 _DKE-WG @ IF
-                    DUP _DKE-WG @ EDITOR-KEY IF
-                        DROP
-                        _DKE-WG @ WG-DIRTY
+                    \ Check if the menu bar is focused
+                    _DKE-MBAR @ 0<>
+                    FOCUS-WIDGET @ _DKE-MBAR @ = AND IF
+                        \ ── Menu bar focused ──
+                        DUP FOCUS-WIDGET @
+                        DUP WG.ONKEY @ EXECUTE IF
+                            DROP         \ consumed by menu bar
+                        ELSE
+                            \ Not consumed — handle Tab/Esc/other
+                            DUP K-ESC = IF
+                                DROP
+                                _DKE-WG @ FOCUS
+                                _DKE-MBAR @ WG-DIRTY
+                            ELSE DUP K-TAB = IF
+                                DROP
+                                _DKE-WG @ FOCUS
+                                _DKE-MBAR @ WG-DIRTY
+                            ELSE
+                                DROP     \ ignore other keys
+                            THEN THEN
+                        THEN
                     ELSE
-                        _DK-HANDLE-KEY
+                        \ ── Editor focused ──
+                        DUP K-TAB = IF
+                            \ Tab → switch focus to menu bar
+                            DROP
+                            _DKE-MBAR @ IF
+                                _DKE-MBAR @ FOCUS
+                                _DKE-WG @ WG-DIRTY
+                            THEN
+                        ELSE
+                            DUP _DKE-WG @ EDITOR-KEY IF
+                                DROP
+                                _DKE-WG @ WG-DIRTY
+                            ELSE
+                                _DK-HANDLE-KEY
+                            THEN
+                        THEN
                     THEN
                 ELSE
                     _DK-HANDLE-KEY
