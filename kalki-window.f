@@ -242,7 +242,7 @@ VARIABLE _DLG-SAVE-BUF   0 _DLG-SAVE-BUF !
     \ Restore: copy saved scene → back buffer, swap
     _DLG-SAVE-BUF @ DUP IF
         DUP FB-BACK @ _FB-FRAME-BYTES CMOVE
-        FREE DROP
+        FREE
         0 _DLG-SAVE-BUF !
         FB-SWAP
     ELSE DROP THEN ;

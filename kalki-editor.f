@@ -627,6 +627,9 @@ VARIABLE _EK-GB   VARIABLE _EK-ED  VARIABLE _EK-WG
 
 \ _ED-SAVE-FILE ( -- )
 \   Save gap buffer contents to the open file.
+\   Uses an ALLOCATE'd buffer instead of HERE to avoid corrupting the
+\   heap (which starts 4 KiB above HERE).
+VARIABLE _ESF-BUF
 : _ED-SAVE-FILE
     _EK-ED @ ED.FNLEN @ 0= IF EXIT THEN   \ no filename
     \ Copy filename to NAMEBUF
@@ -635,20 +638,24 @@ VARIABLE _EK-GB   VARIABLE _EK-ED  VARIABLE _EK-WG
     _EK-ED @ ED.FNLEN @ 23 MIN CMOVE
     FIND-BY-NAME DUP -1 = IF DROP EXIT THEN
     DIRENT                               ( de )
-    \ Build contiguous text at HERE from gap buffer
+    \ Build contiguous text in a temp buffer from gap buffer
     _EK-GB @ GAP-LENGTH                  ( de len )
     DUP 0= IF 2DROP EXIT THEN
+    DUP ALLOCATE IF DROP 2DROP EXIT THEN ( de len buf )
+    _ESF-BUF !                           ( de len )
     \ Copy before-gap
-    _EK-GB @ GB.BUF @ HERE _EK-GB @ GB.GS @ CMOVE
+    _EK-GB @ GB.BUF @ _ESF-BUF @ _EK-GB @ GB.GS @ CMOVE
     \ Copy after-gap
     _EK-GB @ GB.BUF @ _EK-GB @ GB.GE @ +
-    HERE _EK-GB @ GB.GS @ +
+    _ESF-BUF @ _EK-GB @ GB.GS @ +
     _EK-GB @ GB.SIZE @ _EK-GB @ GB.GE @ - CMOVE
     \ Write to disk
     OVER DE.SEC DISK-SEC!
-    HERE DISK-DMA!
+    _ESF-BUF @ DISK-DMA!
     OVER DE.COUNT DISK-N!
     DISK-WRITE
+    \ Free temp buffer
+    _ESF-BUF @ FREE
     \ Update used_bytes: L! ( u32 addr -- )
     SWAP 28 + L!                         ( -- )
     FS-SYNC
@@ -750,19 +757,28 @@ VARIABLE _ELF-SZ  VARIABLE _ELF-GB
     DUP WG.DATA @ >R
     NAMEBUF 24 0 FILL
     R@ ED.FNAME @ NAMEBUF R@ ED.FNLEN @ 23 MIN CMOVE
-    R> ED.GB @ _ELF-GB !        ( widget -- consumed )
+    R> ED.GB @ _ELF-GB !
     \ Find file
     FIND-BY-NAME DUP -1 = IF DROP DROP EXIT THEN
     DIRENT DUP DE.USED DUP 0= IF DROP DROP DROP EXIT THEN
     _ELF-SZ !                    ( de )
-    \ Read file data into HERE
+    \ Ensure gap buffer has 2x file size so GAP-MOVE has no
+    \ overlapping CMOVE (CMOVE copies low-to-high; no CMOVE>)
+    _ELF-GB @ _ELF-SZ @ DUP + _GAP-ENSURE
+    \ Read file data directly into gap buffer at gap start
+    \ (gap starts at BUF+GS; after _GAP-ENSURE gap >= _ELF-SZ)
     DUP DE.SEC DISK-SEC!
-    HERE DISK-DMA!
+    _ELF-GB @ GB.BUF @ _ELF-GB @ GB.GS @ + DISK-DMA!
     DE.COUNT DISK-N!
     DISK-READ
-    \ Insert file data into gap buffer
+    \ Advance GS by file size (data now "before gap")
+    _ELF-GB @ GB.GS @ _ELF-SZ @ + _ELF-GB @ GB.GS !
+    \ Count newlines in loaded data to set cached line count
+    1 _ELF-GB @ GB.LINES !
     _ELF-SZ @ 0 DO
-        HERE I + C@ _ELF-GB @ GAP-INSERT
+        _ELF-GB @ GB.BUF @ I + C@ 10 = IF
+            _ELF-GB @ GB.LINES @ 1+ _ELF-GB @ GB.LINES !
+        THEN
     LOOP
     \ Move cursor to start
     0 _ELF-GB @ GAP-MOVE

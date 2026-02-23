@@ -148,6 +148,7 @@ VARIABLE _DKE-FNLEN
 \   Must be defined before _DK-OPEN-FILE (used by menu action XT).
 : _DK-CLOSE-EDITOR  ( -- )
     _DKE-WIN @ DUP 0= IF DROP EXIT THEN
+    0 FOCUS-WIDGET !             \ clear before free (use-after-free)
     DUP WIN-UNREGISTER
     WG-FREE-SUBTREE
     0 _DKE-WIN !
