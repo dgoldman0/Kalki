@@ -149,7 +149,7 @@ VARIABLE _DKE-FNLEN
     DUP _DKE-FNLEN !
     _DKE-FNAME SWAP CMOVE
     \ Hide file manager
-    DK-FILE-WIN @ 0 WGF-VISIBLE WG-CLR-FLAG
+    DK-FILE-WIN @ WGF-VISIBLE WG-CLR-FLAG
     \ Create editor window (full workspace area)
     0 0 800 WORKSPACE-H
     _DKE-FNAME _DKE-FNLEN @
@@ -325,8 +325,8 @@ VARIABLE _FMK-KEY
             DUP K-CTRL-S = IF
                 \ Ctrl-S in editor → save, don't exit
                 _DKE-WG @ IF
-                    _DKE-WG @ EDITOR-KEY DROP
                     DROP
+                    _DKE-WG @ EDITOR-KEY DROP
                 ELSE
                     _DK-HANDLE-KEY
                 THEN

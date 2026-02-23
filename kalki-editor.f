@@ -752,8 +752,8 @@ VARIABLE _ELF-SZ  VARIABLE _ELF-GB
     R@ ED.FNAME @ NAMEBUF R@ ED.FNLEN @ 23 MIN CMOVE
     R> ED.GB @ _ELF-GB !        ( widget -- consumed )
     \ Find file
-    FIND-BY-NAME DUP -1 = IF DROP EXIT THEN
-    DIRENT DUP DE.USED DUP 0= IF DROP DROP EXIT THEN
+    FIND-BY-NAME DUP -1 = IF DROP DROP EXIT THEN
+    DIRENT DUP DE.USED DUP 0= IF DROP DROP DROP EXIT THEN
     _ELF-SZ !                    ( de )
     \ Read file data into HERE
     DUP DE.SEC DISK-SEC!
@@ -766,7 +766,8 @@ VARIABLE _ELF-SZ  VARIABLE _ELF-GB
     LOOP
     \ Move cursor to start
     0 _ELF-GB @ GAP-MOVE
-    0 _ELF-GB @ GB.DIRTY ! ;
+    0 _ELF-GB @ GB.DIRTY !
+    DROP ;                        \ drop widget
 
 \ =====================================================================
 \  Section 8: EDIT — Open File in Editor Window
