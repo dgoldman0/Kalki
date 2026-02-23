@@ -35,6 +35,7 @@ REQUIRE kalki-widget.f
 REQUIRE kalki-basic.f
 REQUIRE kalki-window.f
 REQUIRE kalki-editor.f
+REQUIRE kalki-scroll.f
 REQUIRE kalki-desktop.f
 
 \ ── Banner ───────────────────────────────────────────────────────────
@@ -44,4 +45,4 @@ REQUIRE kalki-desktop.f
 ."           KALKI-GFX-TEST  KALKI-COLOR-TEST" CR
 ."           KALKI-WIDGET-TEST  KALKI-BASIC-TEST" CR
 ."           KALKI-WINDOW-TEST  KALKI-EDITOR-TEST" CR
-."           KALKI-DESKTOP-TEST" CR
+."           KALKI-SCROLL-TEST  KALKI-DESKTOP-TEST" CR

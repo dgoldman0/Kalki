@@ -219,32 +219,33 @@ earlier ones but are scoped so work can pause at any phase boundary.
 
 ---
 
-## Phase 6: Scrollable Containers
+## Phase 6: Scrollable Containers  ✅ COMPLETE
 
 **Goal:** Scrollbars and scrollable content areas.
 
 ### 6.1 — Scrollbar Widget
 
-- [ ] `SCROLLBAR ( orientation parent -- widget )` — vertical or horizontal
-- [ ] Render: track (CLR-SCROLL-BG) + thumb (CLR-SCROLL-FG)
-- [ ] Thumb size proportional to visible/total ratio
-- [ ] Key handler: arrow keys move thumb, page keys jump
+- [x] `SCROLLBAR ( x y w h parent -- widget )` — vertical scrollbar
+- [x] Render: track (CLR-SCROLL-BG) + thumb (CLR-SCROLL-FG)
+- [x] Thumb size proportional to visible/total ratio
+- [x] `SB-UPDATE ( total visible pos scrollbar -- )` — update state
 
-### 6.2 — Scroll View
+### 6.2 — List Widget
 
-- [ ] `SCROLL-VIEW ( x y w h parent -- widget )` — container with
-      scrollbar that clips child content
-- [ ] Manages scroll offset, renders visible portion only
-- [ ] Scrollbar auto-hides when content fits
+- [x] `LISTBOX ( x y w h parent -- widget )` — scrollable list
+- [x] Auto-creates scrollbar child at right edge
+- [x] Selection highlight (CLR-HIGHLIGHT)
+- [x] Key handler: Up/Down/PgUp/PgDn/Home/End/Enter
+- [x] `_LB-ENSURE-VISIBLE` — auto-scroll to keep selection visible
+- [x] `_LB-SYNC-SB` — sync scrollbar to listbox state
+- [x] `LB-SET-ITEMS ( count widget -- )` — set item count
+- [x] `LB-SET-RENDER ( xt widget -- )` — set item render callback
+- [x] `LB-SET-ACTION ( xt widget -- )` — set Enter action
+- [x] `LB-SELECTED ( widget -- idx )` — get selected index
+- [x] `LB-SCROLL ( widget -- scroll )` — get scroll offset
+- [x] Default item renderer draws index number
 
-### 6.3 — List Widget
-
-- [ ] `LISTBOX ( x y w h nitems item-render-xt parent -- widget )`
-- [ ] Scrollable list of items
-- [ ] Selection highlight
-- [ ] Enter triggers action on selected item
-
-**Deliverable:** `kalki-scroll.f` module (~200 lines).
+**Deliverable:** `kalki-scroll.f` — ~440 lines Forth.
 
 ---
 
@@ -425,7 +426,7 @@ earlier ones but are scoped so work can pause at any phase boundary.
 | Phase 3: Basic widgets | `kalki-basic.f` | ~~250~~ 261 ✅ |
 | Phase 4: Windows | `kalki-window.f` | ~~300~~ 442 ✅ |
 | Phase 5: Menus | `kalki-menu.f` | 250 |
-| Phase 6: Scrolling | `kalki-scroll.f` | 200 |
+| Phase 6: Scrolling | `kalki-scroll.f` | 440 |
 | Phase 7: Text editor | `kalki-editor.f` | ~~400~~ 953 ✅ |
 | Phase 8: Desktop | `kalki-desktop.f` | 350 |
 | Phase 9: Fonts | `kalki-font.f` | 150 |

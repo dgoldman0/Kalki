@@ -71,6 +71,9 @@ fs.inject_file('kalki-window.f',
 fs.inject_file('kalki-editor.f',
                Path('$SCRIPT_DIR/kalki-editor.f').read_bytes(),
                ftype=FTYPE_FORTH)
+fs.inject_file('kalki-scroll.f',
+               Path('$SCRIPT_DIR/kalki-scroll.f').read_bytes(),
+               ftype=FTYPE_FORTH)
 fs.inject_file('kalki-desktop.f',
                Path('$SCRIPT_DIR/kalki-desktop.f').read_bytes(),
                ftype=FTYPE_FORTH)
@@ -81,7 +84,7 @@ fs.inject_file('autoexec.f',
                ftype=FTYPE_FORTH)
 
 fs.save('$DISK_IMG')
-print(f'Kalki disk: 11 files')
+print(f'Kalki disk: 12 files')
 "
 
 echo "=== Disk contents ==="
@@ -127,7 +130,7 @@ def run_until_idle(max_steps=2_000_000_000):
     return total
 
 run_until_idle()
-for cmd in ['KALKI-GFX-TEST', 'KALKI-COLOR-TEST', 'KALKI-WIDGET-TEST', 'KALKI-BASIC-TEST', 'KALKI-WINDOW-TEST', 'KALKI-EDITOR-TEST', 'KALKI-DESKTOP-TEST']:
+for cmd in ['KALKI-GFX-TEST', 'KALKI-COLOR-TEST', 'KALKI-WIDGET-TEST', 'KALKI-BASIC-TEST', 'KALKI-WINDOW-TEST', 'KALKI-EDITOR-TEST', 'KALKI-SCROLL-TEST', 'KALKI-DESKTOP-TEST']:
     sys_emu.uart.inject_input((cmd + '\n').encode())
     run_until_idle(500_000_000)
 
