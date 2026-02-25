@@ -346,8 +346,11 @@ VARIABLE _GLE-GB
 : ED.FNLEN  24 + ;              \ +24
 : ED.VLINES 32 + ;              \ +32
 : ED.VCOLS  40 + ;              \ +40
+: ED.PSCROLL 48 + ;             \ +48  previous scroll offset
+: ED.PCLINE  56 + ;             \ +56  previous cursor line
+: ED.TDIRTY  64 + ;             \ +64  text-dirty (content changed)
 
-48 CONSTANT /EDITOR-DATA
+72 CONSTANT /EDITOR-DATA
 
 4  CONSTANT LINENUM-W            \ digits for line number column
 2  CONSTANT LINENUM-PAD          \ padding after line numbers
@@ -470,6 +473,8 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
     LINE-H * _ER-AY @ + ED-PAD + ( y-pixel with top pad )
     _ERL-Y !
     _ER-AX @ ED-PAD + _ERL-X !  ( -- )
+    \ Clear this line's full horizontal strip (gutter + text area)
+    CLR-EDIT-BG _ER-AX @ _ERL-Y @ _ER-W @ LINE-H FAST-RECT
     \ Draw line number (right-justified in gutter)
     _ERL-X @ GFX-CX !
     _ERL-Y @ GFX-CY !
@@ -494,25 +499,9 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
 
 : EDITOR-RENDER  ( widget -- )
     _ED-SETUP
-    \ Editor widget area is already at absolute coords (ax, ay, w, h).
-    \ No WIN-CLIENT offsets needed — they are baked into WG-ABS-X/Y.
     \ Layout: text area = (ax, ay, w, h - SBAR-H)
     \         gutter in left GUTTER-PX of text area
     \         status bar at (ax, ay+h-SBAR-H, w, SBAR-H)
-    \ Text area background
-    CLR-EDIT-BG
-    _ER-AX @
-    _ER-AY @
-    _ER-W @
-    _ER-H @ SBAR-H -
-    FAST-RECT
-    \ Line number gutter background (seamless with editor bg)
-    CLR-EDIT-BG
-    _ER-AX @ ED-PAD +
-    _ER-AY @ ED-PAD +
-    GUTTER-PX
-    _ER-H @ SBAR-H - ED-PAD 2* -
-    FAST-RECT
     \ Build line-start table + cursor line/col (single O(N) pass)
     _ER-GB @ _GB-COUNT-LINES _ER-NLINES !
     _ER-ED @ ED.SCROLL @
@@ -535,10 +524,19 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
         _ER-ED @ ED.VLINES @ _ER-NLINES @ _ER-ED @ ED.SCROLL @ - MIN
         _ER-GB @ _BUILD-LINE-STARTS
     THEN
-    \ Render visible lines using pre-built table
+    \ Full redraw every paint (DBUF paints both buffers over 2 frames).
+    \ Top pad strip
+    CLR-EDIT-BG _ER-AX @ _ER-AY @ _ER-W @ ED-PAD FAST-RECT
+    \ Render all visible lines
     _LST-CNT @ 0 DO
         I I _ER-ED @ ED.SCROLL @ + _ED-RENDER-LINE
     LOOP
+    \ Clear empty area below last text line
+    _LST-CNT @ LINE-H * ED-PAD + _ER-AY @ +
+    _ER-AY @ _ER-H @ + SBAR-H -
+    OVER - DUP 0> IF
+        >R CLR-EDIT-BG _ER-AX @ ROT _ER-W @ R> FAST-RECT
+    ELSE 2DROP THEN
     \ Draw cursor (thin 2px bar)
     _ER-CURLINE @ _ER-ED @ ED.SCROLL @ - DUP 0 >= IF
         DUP _ER-ED @ ED.VLINES @ < IF
@@ -661,11 +659,14 @@ VARIABLE _ESF-BUF
     FS-SYNC
     0 _EK-GB @ GB.DIRTY ! ;
 
+\ Helper: mark editor text as modified (forces full repaint)
+: _ED-TEXT-DIRTY  ( -- )  1 _EK-ED @ ED.TDIRTY ! ;
+
 : EDITOR-KEY  ( key widget -- consumed? )
     _ED-KEY-SETUP
     \ Ctrl-S = save
     DUP K-CTRL-S = IF DROP _ED-SAVE-FILE _EK-WG @ WG-DIRTY -1 EXIT THEN
-    \ Arrow keys
+    \ Arrow keys (cursor-only, no text change)
     DUP K-UP    = IF DROP _ED-CURSOR-UP    _EK-WG @ WG-DIRTY -1 EXIT THEN
     DUP K-DOWN  = IF DROP _ED-CURSOR-DOWN  _EK-WG @ WG-DIRTY -1 EXIT THEN
     DUP K-LEFT  = IF DROP
@@ -679,16 +680,16 @@ VARIABLE _ESF-BUF
     DUP K-END   = IF DROP _ED-CURSOR-END   _EK-WG @ WG-DIRTY -1 EXIT THEN
     DUP K-PGUP  = IF DROP _ED-PAGE-UP      _EK-WG @ WG-DIRTY -1 EXIT THEN
     DUP K-PGDN  = IF DROP _ED-PAGE-DOWN    _EK-WG @ WG-DIRTY -1 EXIT THEN
-    \ Backspace
-    DUP K-BS = IF DROP _EK-GB @ GAP-DELETE _EK-WG @ WG-DIRTY -1 EXIT THEN
-    \ Delete (both 0x7F and ESC[3~)
-    DUP K-DEL  = IF DROP _EK-GB @ GAP-DELETE-FWD _EK-WG @ WG-DIRTY -1 EXIT THEN
-    DUP K-DEL2 = IF DROP _EK-GB @ GAP-DELETE-FWD _EK-WG @ WG-DIRTY -1 EXIT THEN
-    \ Enter
-    DUP K-ENTER = IF DROP 10 _EK-GB @ GAP-INSERT _EK-WG @ WG-DIRTY -1 EXIT THEN
-    \ Printable ASCII (32-126)
+    \ Backspace (text mutation)
+    DUP K-BS = IF DROP _ED-TEXT-DIRTY _EK-GB @ GAP-DELETE _EK-WG @ WG-DIRTY -1 EXIT THEN
+    \ Delete (text mutation)
+    DUP K-DEL  = IF DROP _ED-TEXT-DIRTY _EK-GB @ GAP-DELETE-FWD _EK-WG @ WG-DIRTY -1 EXIT THEN
+    DUP K-DEL2 = IF DROP _ED-TEXT-DIRTY _EK-GB @ GAP-DELETE-FWD _EK-WG @ WG-DIRTY -1 EXIT THEN
+    \ Enter (text mutation)
+    DUP K-ENTER = IF DROP _ED-TEXT-DIRTY 10 _EK-GB @ GAP-INSERT _EK-WG @ WG-DIRTY -1 EXIT THEN
+    \ Printable ASCII (text mutation)
     DUP 32 >= OVER 126 <= AND IF
-        _EK-GB @ GAP-INSERT _EK-WG @ WG-DIRTY -1 EXIT THEN
+        _ED-TEXT-DIRTY _EK-GB @ GAP-INSERT _EK-WG @ WG-DIRTY -1 EXIT THEN
     \ Unknown key — not consumed
     DROP 0 ;
 
@@ -730,6 +731,7 @@ VARIABLE _ESF-BUF
     _F-W @ GUTTER-PX - ED-PAD 2* - FONT-W /     ( widget data vis-cols )
     OVER ED.VCOLS !
     0 OVER ED.SCROLL !
+    1 OVER ED.TDIRTY !
     DROP                                ( widget )
     ['] EDITOR-RENDER OVER WG.RENDER !
     ['] EDITOR-KEY OVER WG.ONKEY !

@@ -39,55 +39,55 @@ python3 -c "
 from pathlib import Path
 from diskutil import MP64FS, FTYPE_FORTH
 
+KALKI  = Path('$SCRIPT_DIR')
+AKASHIC = KALKI / 'akashic' / 'akashic'
+
 fs = MP64FS()
 fs.format()
 
-# KDOS -- must be first Forth file (BIOS auto-loads it)
+# ── System (root dir) ────────────────────────────────────────────────
 fs.inject_file('kdos.f', Path('kdos.f').read_bytes(),
                ftype=FTYPE_FORTH, flags=0x02)
-
-# Dependencies
 fs.inject_file('graphics.f', Path('graphics.f').read_bytes(),
                ftype=FTYPE_FORTH)
 fs.inject_file('tools.f', Path('tools.f').read_bytes(),
                ftype=FTYPE_FORTH)
 
-# Kalki modules
-fs.inject_file('kalki-gfx.f',
-               Path('$SCRIPT_DIR/kalki-gfx.f').read_bytes(),
-               ftype=FTYPE_FORTH)
-fs.inject_file('kalki-color.f',
-               Path('$SCRIPT_DIR/kalki-color.f').read_bytes(),
-               ftype=FTYPE_FORTH)
-fs.inject_file('kalki-widget.f',
-               Path('$SCRIPT_DIR/kalki-widget.f').read_bytes(),
-               ftype=FTYPE_FORTH)
-fs.inject_file('kalki-basic.f',
-               Path('$SCRIPT_DIR/kalki-basic.f').read_bytes(),
-               ftype=FTYPE_FORTH)
-fs.inject_file('kalki-window.f',
-               Path('$SCRIPT_DIR/kalki-window.f').read_bytes(),
-               ftype=FTYPE_FORTH)
-fs.inject_file('kalki-editor.f',
-               Path('$SCRIPT_DIR/kalki-editor.f').read_bytes(),
-               ftype=FTYPE_FORTH)
-fs.inject_file('kalki-scroll.f',
-               Path('$SCRIPT_DIR/kalki-scroll.f').read_bytes(),
-               ftype=FTYPE_FORTH)
-fs.inject_file('kalki-menu.f',
-               Path('$SCRIPT_DIR/kalki-menu.f').read_bytes(),
-               ftype=FTYPE_FORTH)
-fs.inject_file('kalki-desktop.f',
-               Path('$SCRIPT_DIR/kalki-desktop.f').read_bytes(),
-               ftype=FTYPE_FORTH)
+# ── Akashic libraries (in subdirectories) ────────────────────────────
+# math/
+fs.mkdir('math')
+for name in ['fp16.f', 'fp16-ext.f', 'fixed.f', 'bezier.f']:
+    fs.inject_file(name, (AKASHIC / 'math' / name).read_bytes(),
+                   ftype=FTYPE_FORTH, path='math')
 
-# Autoexec (loads Kalki modules on boot)
+# font/
+fs.mkdir('font')
+for name in ['ttf.f', 'raster.f', 'cache.f']:
+    fs.inject_file(name, (AKASHIC / 'font' / name).read_bytes(),
+                   ftype=FTYPE_FORTH, path='font')
+
+# text/
+fs.mkdir('text')
+for name in ['utf8.f', 'layout.f']:
+    fs.inject_file(name, (AKASHIC / 'text' / name).read_bytes(),
+                   ftype=FTYPE_FORTH, path='text')
+
+# ── Kalki modules (root dir) ────────────────────────────────────────
+for name in ['kalki-gfx.f', 'kalki-color.f', 'kalki-widget.f',
+             'kalki-basic.f', 'kalki-window.f', 'kalki-editor.f',
+             'kalki-scroll.f', 'kalki-menu.f', 'kalki-font.f',
+             'kalki-desktop.f']:
+    fs.inject_file(name, (KALKI / name).read_bytes(),
+                   ftype=FTYPE_FORTH)
+
+# ── Autoexec ─────────────────────────────────────────────────────────
 fs.inject_file('autoexec.f',
-               Path('$SCRIPT_DIR/kalki-autoexec.f').read_bytes(),
+               (KALKI / 'kalki-autoexec.f').read_bytes(),
                ftype=FTYPE_FORTH)
 
+n = sum(1 for _ in fs.list_files())
 fs.save('$DISK_IMG')
-print(f'Kalki disk: 13 files')
+print(f'Kalki disk: {n} files (3 dirs)')
 "
 
 echo "=== Disk contents ==="
@@ -133,7 +133,7 @@ def run_until_idle(max_steps=2_000_000_000):
     return total
 
 run_until_idle()
-for cmd in ['KALKI-GFX-TEST', 'KALKI-COLOR-TEST', 'KALKI-WIDGET-TEST', 'KALKI-BASIC-TEST', 'KALKI-WINDOW-TEST', 'KALKI-EDITOR-TEST', 'KALKI-SCROLL-TEST', 'KALKI-MENU-TEST', 'KALKI-DESKTOP-TEST']:
+for cmd in ['KALKI-GFX-TEST', 'KALKI-COLOR-TEST', 'KALKI-WIDGET-TEST', 'KALKI-BASIC-TEST', 'KALKI-FONT-TEST', 'KALKI-WINDOW-TEST', 'KALKI-EDITOR-TEST', 'KALKI-SCROLL-TEST', 'KALKI-MENU-TEST', 'KALKI-DESKTOP-TEST']:
     sys_emu.uart.inject_input((cmd + '\n').encode())
     run_until_idle(500_000_000)
 

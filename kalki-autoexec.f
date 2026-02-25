@@ -6,7 +6,7 @@
 \  Boot chain:
 \    BIOS → FSLOAD kdos.f → KDOS → autoexec.f (this file)
 \    → REQUIRE graphics.f → REQUIRE kalki-gfx.f → REQUIRE kalki-color.f
-\    → REQUIRE kalki-widget.f
+\    → REQUIRE kalki-font.f → REQUIRE kalki-widget.f
 \ =====================================================================
 
 PROVIDED autoexec.f
@@ -31,6 +31,7 @@ REQUIRE graphics.f
 REQUIRE tools.f
 REQUIRE kalki-gfx.f
 REQUIRE kalki-color.f
+REQUIRE kalki-font.f
 REQUIRE kalki-widget.f
 REQUIRE kalki-basic.f
 REQUIRE kalki-window.f
@@ -44,7 +45,7 @@ REQUIRE kalki-desktop.f
 ." Commands: KALKI                        \u2190 enter desktop" CR
 ."           EDIT <filename>              \u2190 standalone editor" CR
 ."           KALKI-GFX-TEST  KALKI-COLOR-TEST" CR
-."           KALKI-WIDGET-TEST  KALKI-BASIC-TEST" CR
-."           KALKI-WINDOW-TEST  KALKI-EDITOR-TEST" CR
-."           KALKI-SCROLL-TEST  KALKI-DESKTOP-TEST" CR
-."           KALKI-MENU-TEST" CR
+."           KALKI-FONT-TEST KALKI-WIDGET-TEST" CR
+."           KALKI-BASIC-TEST  KALKI-WINDOW-TEST" CR
+."           KALKI-EDITOR-TEST  KALKI-SCROLL-TEST" CR
+."           KALKI-DESKTOP-TEST KALKI-MENU-TEST" CR

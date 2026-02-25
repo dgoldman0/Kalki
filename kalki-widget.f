@@ -59,18 +59,35 @@ REQUIRE kalki-color.f
 4 CONSTANT WGF-FOCUSABLE         \ can receive keyboard focus
 8 CONSTANT WGF-FOCUSED           \ currently focused (display hint)
 16 CONSTANT WGF-DISABLED         \ grayed out, skipped by tab
+32 CONSTANT WGF-DBUF             \ double-buffer: needs 2nd-buffer paint
 
-\ Default flags for new widgets: visible + dirty
-WGF-VISIBLE WGF-DIRTY OR CONSTANT WGF-DEFAULT
+\ Default flags for new widgets: visible + dirty + dbuf
+WGF-VISIBLE WGF-DIRTY OR WGF-DBUF OR CONSTANT WGF-DEFAULT
 
 \ Flag helpers: ( widget -- )
 : WG-SET-FLAG    ( widget flag -- )  OVER WG.FLAGS @ OR   SWAP WG.FLAGS ! ;
 : WG-CLR-FLAG    ( widget flag -- )  INVERT OVER WG.FLAGS @ AND SWAP WG.FLAGS ! ;
 : WG-FLAG?       ( widget flag -- f )  SWAP WG.FLAGS @ AND 0<> ;
 
-: WG-DIRTY       ( widget -- )  WGF-DIRTY WG-SET-FLAG ;
+\ WG-DIRTY: mark widget for repaint on BOTH buffers (2 frames)
+: WG-DIRTY       ( widget -- )  WGF-DIRTY WGF-DBUF OR WG-SET-FLAG ;
 : WG-DIRTY?      ( widget -- f )  WGF-DIRTY WG-FLAG? ;
 : WG-CLEAN       ( widget -- )  WGF-DIRTY WG-CLR-FLAG ;
+
+\ WG-NEEDS-PAINT? — true if either DIRTY or DBUF is set
+: WG-NEEDS-PAINT?  ( widget -- f )
+    DUP WGF-DIRTY WG-FLAG?
+    SWAP WGF-DBUF WG-FLAG? OR ;
+
+\ WG-ADVANCE-DIRTY — step the 2-frame counter
+\   1st call (DIRTY set): clears DIRTY, keeps DBUF for next frame
+\   2nd call (only DBUF):  clears DBUF → widget is fully clean
+: WG-ADVANCE-DIRTY  ( widget -- )
+    DUP WGF-DIRTY WG-FLAG? IF
+        WGF-DIRTY WG-CLR-FLAG
+    ELSE
+        WGF-DBUF WG-CLR-FLAG
+    THEN ;
 : WG-VISIBLE?    ( widget -- f )  WGF-VISIBLE WG-FLAG? ;
 : WG-FOCUSABLE?  ( widget -- f )
     DUP WGF-FOCUSABLE WG-FLAG?
@@ -400,8 +417,8 @@ VARIABLE _CL-AX   VARIABLE _CL-AY
 \ RENDER-WIDGET ( widget -- )
 \   Render a single widget (called during tree walk).
 : RENDER-WIDGET  ( widget -- )
-    DUP WG-DIRTY? 0= IF DROP EXIT THEN
-    DUP WG-CLEAN
+    DUP WG-NEEDS-PAINT? 0= IF DROP EXIT THEN
+    DUP WG-ADVANCE-DIRTY
     DUP WG.RENDER @ EXECUTE ;
 
 \ RENDER-TREE ( root -- )
@@ -417,9 +434,9 @@ VARIABLE _CL-AX   VARIABLE _CL-AY
     DUP WG-VISIBLE? 0= IF DROP EXIT THEN
     CLIP-PUSH
     DUP WG-CLIP-TO
-    DUP WG-DIRTY?              ( widget dirty? )
+    DUP WG-NEEDS-PAINT?        ( widget needs-paint? )
     IF
-        DUP WG-CLEAN
+        DUP WG-ADVANCE-DIRTY
         DUP DUP WG.RENDER @ EXECUTE
         \  ^^^ extra DUP: WG.RENDER @ uses one copy for field access,
         \      EXECUTE's render fn consumes another; keep original below
@@ -427,7 +444,7 @@ VARIABLE _CL-AX   VARIABLE _CL-AY
     ELSE 0 THEN                 ( widget cascade? )
     SWAP WG.CHILD1 @            ( cascade? child )
     BEGIN DUP 0<> WHILE
-        OVER IF DUP WGF-DIRTY WG-SET-FLAG THEN
+        OVER IF DUP WG-DIRTY THEN  \ cascade: 2-frame dirty
         DUP RECURSE
         WG.NEXT @
     REPEAT 2DROP

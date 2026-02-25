@@ -341,12 +341,12 @@ VARIABLE _FMK-KEY
             _DK-UPDATE-CLOCK
             DK-CLOCK-LBL @ WG-DIRTY
         ELSE DROP THEN
-        \ Render dirty widgets
+        \ Render dirty widgets (double-buffer aware: each dirty
+        \ widget renders to both buffers via WGF-DBUF, then stops)
         DK-ROOT @ RENDER-TREE
         FB-SWAP
-        FB-COPY-BACK
-        \ Wait for vsync / yield CPU
-        GFX-SYNC
+        \ Yield CPU (FB-SWAP already synced to vsync)
+        IDLE
         \ Poll keyboard
         KEY? IF
             EKEY

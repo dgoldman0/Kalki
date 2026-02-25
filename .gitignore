@@ -1,2 +1,4 @@
 emu/
 *.img
+akashic/
+test-akashic.sh

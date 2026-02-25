@@ -35,15 +35,8 @@ REQUIRE graphics.f
     ROT OR SWAP  ( rg rgb24 )
     0xFF AND 3 RSHIFT OR ;  ( rgb565 )
 
-\ WFILL ( addr count color16 -- )
-\   Fill 'count' 16-bit words with color16.  Like FILL but for W!.
-: WFILL  ( addr count color16 -- )
-    ROT ROT                     ( color16 addr count )
-    0 DO                        ( color16 addr )
-        2DUP W!                 \ store 16-bit pixel
-        2 +                     \ next pixel
-    LOOP
-    2DROP ;
+\ WFILL ( addr n word -- ) is provided by BIOS in assembly
+\   Tight loop: ~4-5 insns/pixel vs ~10 for Forth DO/LOOP.
 
 \ =====================================================================
 \  Section 1: Fast Drawing Primitives
