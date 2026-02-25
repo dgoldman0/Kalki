@@ -76,7 +76,7 @@ for name in ['utf8.f', 'layout.f']:
 for name in ['kalki-gfx.f', 'kalki-color.f', 'kalki-widget.f',
              'kalki-basic.f', 'kalki-window.f', 'kalki-editor.f',
              'kalki-scroll.f', 'kalki-menu.f', 'kalki-font.f',
-             'kalki-desktop.f']:
+             'kalki-app.f', 'kalki-desktop.f']:
     fs.inject_file(name, (KALKI / name).read_bytes(),
                    ftype=FTYPE_FORTH)
 

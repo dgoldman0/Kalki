@@ -38,6 +38,7 @@ REQUIRE kalki-window.f
 REQUIRE kalki-editor.f
 REQUIRE kalki-scroll.f
 REQUIRE kalki-menu.f
+REQUIRE kalki-app.f
 REQUIRE kalki-desktop.f
 
 \ ── Banner ───────────────────────────────────────────────────────────
@@ -49,3 +50,4 @@ REQUIRE kalki-desktop.f
 ."           KALKI-BASIC-TEST  KALKI-WINDOW-TEST" CR
 ."           KALKI-EDITOR-TEST  KALKI-SCROLL-TEST" CR
 ."           KALKI-DESKTOP-TEST KALKI-MENU-TEST" CR
+."           KALKI-APP-TEST" CR
