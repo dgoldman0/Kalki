@@ -304,7 +304,7 @@ VARIABLE _AP-XT                \ scratch: launch entry-xt
 
     \ ── Create arena descriptor (32B heap) then init ──
     32 ALLOCATE ABORT" APP: arena desc"          ( dict-base arena-desc )
-    DUP _AP-ARENA-SZ 0 ARENA-NEW-AT
+    DUP _AP-ARENA-SZ 1 ARENA-NEW-AT
     ABORT" APP: arena alloc"                     ( dict-base arena-desc )
     _AP-PID @ _AP-SLOT AP.ARENA + !             ( dict-base )
 
