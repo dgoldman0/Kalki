@@ -417,10 +417,11 @@ VARIABLE _MC-MN                  \ scratch for calc
     _MN-ROOT @ RENDER-TREE
     FB-SWAP
     FB-COPY-BACK
-    \ Update bar selection to match final trigger
+    \ Update bar selection BEFORE executing the action, because
+    \ the action might free the bar widget (e.g. Close editor).
     _MN-BIDX @ _MN-BAR @ WG.DATA @ MB.SEL + !
     _MN-BAR @ WG-DIRTY
-    \ Execute action (after scene is restored)
+    \ Execute action LAST (it may free the bar/window)
     _MN-ACT @ ?DUP IF EXECUTE THEN ;
 
 \ =====================================================================

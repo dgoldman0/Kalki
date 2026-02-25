@@ -44,36 +44,25 @@ REQUIRE graphics.f
 \  RGB565 (16bpp) versions.  Each pixel = 2 bytes.  Uses W! for stores
 \  and WFILL for horizontal spans.
 
-\ FAST-HLINE ( color x y len -- )
-\   Draw a horizontal line.  RGB565: W! in a loop.
-: FAST-HLINE
-    >R                          ( color x y  R: len )
-    GFX-ADDR                    ( color addr  R: len )
-    R>                          ( color addr len )
-    ROT                         ( addr len color )
-    WFILL ;
-
-\ FAST-VLINE ( color x y len -- )
-\   Draw a vertical line.  Computes address once, steps by stride.
-: FAST-VLINE
-    >R                          ( color x y  R: len )
-    GFX-ADDR                    ( color addr  R: len )
-    R>                          ( color addr len )
-    0 DO                        ( color addr )
-        2DUP W!                 \ store 16-bit pixel
-        GFX-STR @ +             \ advance to next row
-    LOOP
-    2DROP ;
-
 \ FAST-RECT ( color x y w h -- )
-\   Filled rectangle.  Uses FAST-HLINE per row.
-\   Reuses GFX-D* scratch vars from graphics.f.
+\   Filled rectangle.  Delegates to BIOS RECT-FILL for 16bpp.
+\   Computes pixel address once, passes stride as value.
 : FAST-RECT
     GFX-DH ! GFX-DW ! GFX-DY ! GFX-DX ! GFX-DC !
-    GFX-DH @ 0 DO
-        GFX-DC @ GFX-DX @ GFX-DY @ I + GFX-DW @
-        FAST-HLINE
-    LOOP ;
+    GFX-DX @ GFX-DY @ GFX-ADDR        ( addr )
+    GFX-STR @                          ( addr stride )
+    GFX-DW @                           ( addr stride w )
+    GFX-DH @                           ( addr stride w h )
+    GFX-DC @                           ( addr stride w h color16 )
+    RECT-FILL ;
+
+\ FAST-HLINE ( color x y len -- )
+\   Horizontal line via RECT-FILL (w=len, h=1).  Gets C++ accel trap.
+: FAST-HLINE   1 FAST-RECT ;
+
+\ FAST-VLINE ( color x y len -- )
+\   Vertical line via RECT-FILL (w=1, h=len).  Gets C++ accel trap.
+: FAST-VLINE   1 SWAP FAST-RECT ;
 
 \ FAST-BOX ( color x y w h -- )
 \   Outlined rectangle.  Uses FAST-HLINE for horizontals,
@@ -96,47 +85,35 @@ REQUIRE graphics.f
 
 \ GFX-CHAR ( char x y color -- )   [REDEFINED — RGB565 fast path]
 \   Render an 8×8 glyph directly in RGB565 mode.
-\   Computes row address once per row, uses direct W! — no CASE dispatch.
-\   Shadows the slow generic GFX-CHAR from graphics.f (~3× faster).
+\   Uses BLIT-GLYPH (accel hook 2) for acceleration.
+\   Shadows the slow generic GFX-CHAR from graphics.f.
 VARIABLE _FC-CLR
 VARIABLE _FC-ADDR
 
 : GFX-CHAR  ( char x y color -- )
-    _FC-CLR !                          ( char x y )
-    GFX-ADDR _FC-ADDR !               ( char )
-    GFX-GLYPH                         ( glyph-addr )
-    8 0 DO                             \ 8 rows
-        DUP I + C@                     ( glyph rowbits )
-        _FC-ADDR @                     ( glyph rowbits addr )
-        8 0 DO                         ( glyph rowbits addr )
-            OVER 0x80 AND IF
-                _FC-CLR @ OVER W!
-            THEN
-            2 +                        \ advance addr by 2 bytes (1 pixel)
-            SWAP 1 LSHIFT SWAP        \ shift rowbits left
-        LOOP
-        DROP DROP                      ( glyph )
-        _FC-ADDR @ GFX-STR @ + _FC-ADDR !   \ next row
-    LOOP
-    DROP ;
+    >R                                 ( char x y  R: fg16 )
+    GFX-ADDR                           ( char pixel-addr  R: fg16 )
+    SWAP GFX-GLYPH                     ( pixel-addr glyph-addr )
+    SWAP                               ( glyph-addr pixel-addr )
+    GFX-STR @                          ( glyph-addr pixel-addr stride )
+    R>                                 ( glyph-addr pixel-addr stride fg16 )
+    BLIT-GLYPH ;
 
-\ GFX-TYPE ( addr len color -- )   [REDEFINED — RGB565 fast path]
-\   Render a string using the fast GFX-CHAR above.
+\ GFX-TYPE ( addr len color -- )   [REDEFINED — BLIT-STRING fast path]
+\   Render an entire string in one C++ accel trap (BLIT-STRING, hook 4).
+\   Replaces the per-character GFX-CHAR loop (~120 cycles/char batched
+\   vs ~120+overhead per hook call).
 \   Shadows the slow generic GFX-TYPE from graphics.f.
 : GFX-TYPE  ( addr len color -- )
     _FC-CLR !                          ( addr len )
     DUP 0= IF 2DROP EXIT THEN
-    0 DO                               ( addr )
-        DUP I + C@                     ( addr char )
-        GFX-CX @ GFX-CY @             ( addr char cx cy )
-        _FC-CLR @                      ( addr char cx cy color )
-        GFX-CHAR                       ( addr )
-        GFX-CX @ 8 + GFX-CX !         \ advance cursor
-        GFX-CX @ GFX-W @ >= IF
-            0 GFX-CX !
-            GFX-CY @ 8 + GFX-CY !
-        THEN
-    LOOP
+    2DUP                               ( addr len addr len )
+    GFX-CX @ GFX-CY @ GFX-ADDR        ( addr len addr len pixel-addr )
+    GFX-STR @                          ( addr len addr len pixel-addr stride )
+    _FC-CLR @                          ( addr len addr len pixel-addr stride fg16 )
+    GFX-FONT                           ( addr len addr len pixel-addr stride fg16 font-base )
+    BLIT-STRING                        ( addr len )
+    8 * GFX-CX @ + GFX-CX !           ( addr )
     DROP ;
 
 \ =====================================================================
@@ -221,11 +198,8 @@ VARIABLE CV-H                  \ CL-VLINE: length
     CL-X @ CL-W @ + CLIP-X1 @ MIN CL-X0V @ -
     DUP 0 <= IF DROP EXIT THEN
     CL-WC !
-    \ Draw
-    CL-HC @ 0 DO
-        CL-C @ CL-X0V @ CL-Y0V @ I + CL-WC @
-        FAST-HLINE
-    LOOP ;
+    \ Single FAST-RECT call (gets C++ accel trap)
+    CL-C @ CL-X0V @ CL-Y0V @ CL-WC @ CL-HC @ FAST-RECT ;
 
 \ CL-BOX ( color x y w h -- )
 \   Clipped outlined rectangle.  Uses GFX-D* scratch (from graphics.f)

@@ -71,11 +71,17 @@ CREATE _LINE-BUF 256 ALLOT
 \ EKEY ( -- key )
 \   Read one key event.  Decodes VT100 CSI sequences into K-* constants.
 \   For unknown CSI sequences, consumes all bytes and returns 0.
+\   Uses a busy-wait after ESC to avoid splitting escape sequences
+\   under rapid key repeat.
 : EKEY  ( -- key )
     KEY
     DUP 27 <> IF EXIT THEN       \ not ESC — return raw byte
     DROP                          \ discard ESC
-    KEY? 0= IF 27 EXIT THEN      \ bare ESC (no follow-up)
+    \ Wait briefly for follow-up byte (escape sequence continuation).
+    \ At 100 MIPS, 50000 iterations ≈ 0.5 ms — enough for the terminal
+    \ to deliver the rest of the VT100 sequence.
+    50000 0 DO KEY? IF LEAVE THEN LOOP
+    KEY? 0= IF 27 EXIT THEN      \ still bare ESC after wait
     KEY DUP 91 <> IF             \ not '[' — unknown ESC sequence
         DROP 0 EXIT
     THEN
@@ -497,6 +503,72 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
         _LINE-BUF _ERL-CNT @ CLR-EDIT-FG GFX-TYPE
     THEN ;
 
+\ --- Scroll-blit helpers (VRAM-COPY optimization) ---
+VARIABLE _ER-DELTA                  \ scroll delta (signed)
+VARIABLE _ER-ADELTA                 \ |delta| for scroll-up
+VARIABLE _ERG-Y                    \ temp Y for gutter rendering
+
+\ Compute VRAM address of text-area pixel row at given Y offset
+\ from the text-area top (AX, AY+ED-PAD).
+: _ED-TEXT-ROW-ADDR  ( pixel-y-off -- addr )
+    _ER-AY @ + ED-PAD + _ER-AX @ SWAP GFX-ADDR ;
+
+\ Clear gutter and redraw line number for one screen line.
+\ Text content is NOT touched (already correct from VRAM-COPY).
+: _ED-RENDER-GUTTER  ( screen-line -- )
+    DUP >R
+    LINE-H * _ER-AY @ + ED-PAD + _ERG-Y !
+    CLR-EDIT-BG _ER-AX @ ED-PAD + _ERG-Y @ GUTTER-PX LINE-H FAST-RECT
+    _ER-AX @ ED-PAD + GFX-CX !
+    _ERG-Y @ GFX-CY !
+    R> _ER-ED @ ED.SCROLL @ + 1+ _ED-RENDER-LINENUM ;
+
+\ Scroll down (delta > 0): content shifts UP on screen.
+\ VRAM-COPY the overlapping lines, fix gutters, render revealed bottom.
+: _ED-BLIT-DOWN  ( -- )
+    \ VRAM-COPY ( src dst stride w h -- )
+    _ER-DELTA @ LINE-H * _ED-TEXT-ROW-ADDR
+    0 _ED-TEXT-ROW-ADDR
+    GFX-STR @
+    _ER-W @ GFX-BPP @ *
+    _ER-ED @ ED.VLINES @ _ER-DELTA @ - LINE-H *
+    VRAM-COPY
+    \ Fix gutter line numbers for shifted lines (0 .. cnt-delta-1)
+    _LST-CNT @ _ER-DELTA @ - DUP 0> IF
+        0 DO I _ED-RENDER-GUTTER LOOP
+    ELSE DROP THEN
+    \ Full render for newly revealed bottom lines (cnt-delta .. cnt-1)
+    _LST-CNT @ _ER-DELTA @ - 0 MAX
+    DUP _LST-CNT @ < IF
+        _LST-CNT @ SWAP DO
+            I I _ER-ED @ ED.SCROLL @ + _ED-RENDER-LINE
+        LOOP
+    ELSE DROP THEN ;
+
+\ Scroll up (delta < 0): content shifts DOWN on screen.
+\ VRAM-COPY the overlapping lines, fix gutters, render revealed top.
+: _ED-BLIT-UP  ( -- )
+    _ER-DELTA @ NEGATE _ER-ADELTA !
+    \ VRAM-COPY ( src dst stride w h -- )
+    0 _ED-TEXT-ROW-ADDR
+    _ER-ADELTA @ LINE-H * _ED-TEXT-ROW-ADDR
+    GFX-STR @
+    _ER-W @ GFX-BPP @ *
+    _ER-ED @ ED.VLINES @ _ER-ADELTA @ - LINE-H *
+    VRAM-COPY
+    \ Fix gutter line numbers for shifted lines (adelta .. cnt-1)
+    _LST-CNT @ _ER-ADELTA @ > IF
+        _LST-CNT @ _ER-ADELTA @ DO
+            I _ED-RENDER-GUTTER
+        LOOP
+    THEN
+    \ Full render for newly revealed top lines (0 .. adelta-1)
+    _ER-ADELTA @ _LST-CNT @ MIN DUP 0> IF
+        0 DO
+            I I _ER-ED @ ED.SCROLL @ + _ED-RENDER-LINE
+        LOOP
+    ELSE DROP THEN ;
+
 : EDITOR-RENDER  ( widget -- )
     _ED-SETUP
     \ Layout: text area = (ax, ay, w, h - SBAR-H)
@@ -524,7 +596,7 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
         _ER-ED @ ED.VLINES @ _ER-NLINES @ _ER-ED @ ED.SCROLL @ - MIN
         _ER-GB @ _BUILD-LINE-STARTS
     THEN
-    \ Full redraw every paint (DBUF paints both buffers over 2 frames).
+    \ --- Full redraw (BLIT-STRING accelerated) ---
     \ Top pad strip
     CLR-EDIT-BG _ER-AX @ _ER-AY @ _ER-W @ ED-PAD FAST-RECT
     \ Render all visible lines
@@ -537,6 +609,9 @@ VARIABLE _ERL-CNT  VARIABLE _ERL-SL
     OVER - DUP 0> IF
         >R CLR-EDIT-BG _ER-AX @ ROT _ER-W @ R> FAST-RECT
     ELSE 2DROP THEN
+    \ Update scroll tracking for next frame
+    _ER-ED @ ED.SCROLL @ _ER-ED @ ED.PSCROLL !
+    0 _ER-ED @ ED.TDIRTY !
     \ Draw cursor (thin 2px bar)
     _ER-CURLINE @ _ER-ED @ ED.SCROLL @ - DUP 0 >= IF
         DUP _ER-ED @ ED.VLINES @ < IF
